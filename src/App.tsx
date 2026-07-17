@@ -38,6 +38,19 @@ export default function App() {
   const [contextOpen, setContextOpen] = useState(false)
   const [theme, setTheme] = useState<ThemeId>(() => initialTheme('analogy'))
   const [paletteOpen, setPaletteOpen] = useState(false)
+  // The IDE's floating chrome, 3-column run view and code surface need width.
+  // Below that, show a graceful notice instead of a broken layout.
+  const [tooNarrow, setTooNarrow] = useState(false)
+  useEffect(() => {
+    // Guard against a transient 0 width during load reporting a false positive.
+    const check = () => {
+      const w = window.innerWidth
+      if (w > 0) setTooNarrow(w < 880)
+    }
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   // Each workflow keeps its own progress. Switching Loop ↔ Spec parks the
   // stage + review flag for the mode you leave and restores the one you enter,
@@ -233,6 +246,26 @@ export default function App() {
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stages, mode, loopEntered, loop.state.started, runActive, executionReady, reviewApproved])
+
+  if (tooNarrow) {
+    return (
+      <div data-shell="ide" className="relative flex h-screen flex-col items-center justify-center px-8 text-center text-primary">
+        <AppBackdrop />
+        <div className="relative flex max-w-sm flex-col items-center gap-5">
+          <span className="flex h-12 w-12 items-center justify-center rounded-[var(--radius)] bg-accent text-accentink">
+            <span className="h-4 w-4 rounded-full bg-current opacity-90 breathe" />
+          </span>
+          <h1 className="serif-hero font-display text-[26px] font-semibold tracking-[-0.02em]">The IDE needs a wider screen</h1>
+          <p className="text-[14px] leading-relaxed text-secondary">
+            Sutra's loop engine, living code surface and WebAssembly verifier are built for a desktop-sized canvas. Open it on a larger screen — or widen this window — to step inside.
+          </p>
+          <a href={`/?theme=${theme}`} className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-[13px] font-medium text-accentink transition-opacity hover:opacity-90">
+            Back to the Sutra site
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div data-shell="ide" className="relative h-screen overflow-hidden text-primary">
