@@ -59,6 +59,11 @@ flowchart LR
 
 ## Bring your own agents (BYO-agent)
 
+> These contracts now exist as real, compiling TypeScript in
+> [`src/contracts/`](src/contracts/) (`agent.ts`, `llm.ts`, `registry.ts`, plus a
+> reference implementation in `simulated.ts`). The snippets below are illustrative;
+> the files are the source of truth — and still open to proposals.
+
 An agent is a **manifest plus a transport** — never code baked into Sutra.
 
 ```jsonc
