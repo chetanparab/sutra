@@ -1,4 +1,4 @@
-import { Activity, CalendarClock, Command } from 'lucide-react'
+import { Activity, CalendarClock, Command, Home } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { APP_NAME } from '../scenario'
 import type { Mode } from '../types'
@@ -43,17 +43,24 @@ export default function TopChrome({
   return (
     <>
       <div className="absolute left-6 top-5 z-30 flex items-center gap-3.5">
-        <div className="flex items-center gap-2.5">
+        <a
+          href={`/?theme=${theme}`}
+          title="Back to the Sutra site"
+          className="group flex items-center gap-2.5 rounded-[var(--radius)] transition-opacity hover:opacity-90"
+        >
           <span className="flex h-9 w-9 items-center justify-center rounded-[var(--radius)] bg-accent text-accentink">
             <span className="h-3 w-3 rounded-full bg-current opacity-90 breathe" />
           </span>
           <div className="leading-none">
-            <div className="font-display text-[16px] font-semibold tracking-[0.02em]">{APP_NAME}</div>
+            <div className="flex items-center gap-1.5 font-display text-[16px] font-semibold tracking-[0.02em]">
+              {APP_NAME}
+              <Home size={11} className="text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+            </div>
             <div className="label mt-1" style={{ letterSpacing: '0.2em' }}>
               Loop Engine
             </div>
           </div>
-        </div>
+        </a>
 
         <div className="ml-1 flex rounded-full border border-primary/12 bg-primary/[0.03] p-0.5">
           {(

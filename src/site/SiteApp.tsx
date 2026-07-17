@@ -1,6 +1,7 @@
 import {
   ArrowDown,
   ArrowRight,
+  ArrowUpRight,
   Code2,
   Command,
   Cpu,
@@ -20,7 +21,7 @@ import { useEffect, useState } from 'react'
 import ThemeSwitcher, { THEMES, initialTheme, type ThemeId } from '../components/ThemeSwitcher'
 import { Chip, Label, cn } from '../components/ui'
 import { LinkButton, Reveal, Section, useOS, type OS } from './bits'
-import { ARCH, DOWNLOADS, FAQ, FEATURES, HERO_SUB, PHASES_SITE, RELEASES_URL, REPO_URL, STATS, TAGLINE, THESIS } from './content'
+import { ANALOGY_ARCHITECT_URL, ARCH, DOWNLOADS, FAQ, FEATURES, HERO_SUB, PHASES_SITE, RELEASES_URL, REPO_URL, STATS, TAGLINE, THESIS } from './content'
 import HeroOrbit from './HeroOrbit'
 import LiveWasmDemo from './LiveWasmDemo'
 
@@ -469,7 +470,14 @@ export default function SiteApp() {
           <a href={`${REPO_URL}/blob/main/LICENSE`} target="_blank" rel="noreferrer" className="transition-colors hover:text-primary">Apache-2.0</a>
           <a href="#faq" className="transition-colors hover:text-primary">FAQ</a>
           <span className="ml-auto flex flex-wrap items-center gap-x-6 gap-y-2">
-            <span className="text-faint">Built alongside Analogy Architect</span>
+            <a
+              href={ANALOGY_ARCHITECT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 transition-colors hover:text-primary"
+            >
+              Part of The Analogy Architect <ArrowUpRight size={12} />
+            </a>
             <span>A concept preview · © 2026 Sutra</span>
           </span>
         </div>

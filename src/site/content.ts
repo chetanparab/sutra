@@ -3,6 +3,9 @@
 export const REPO_URL = 'https://github.com/chetanparab/sutra'
 export const RELEASES_URL = `${REPO_URL}/releases`
 
+// Sutra is built alongside The Analogy Architect — link back to its home.
+export const ANALOGY_ARCHITECT_URL = 'https://www.theanalogyarchitect.com/'
+
 export const TAGLINE = 'The loop-engineering IDE'
 
 export const HERO_SUB =
