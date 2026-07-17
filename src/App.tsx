@@ -1,10 +1,10 @@
 import { Compass, Eye, FileText, GitMerge, Layers, ListChecks, Play, RotateCcw, SlidersHorizontal, Palette, RefreshCw, Target } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AppBackdrop from './components/AppBackdrop'
 import Conductor, { type Command } from './components/Conductor'
 import ConsoleDock from './components/ConsoleDock'
 import ContextDrawer from './components/ContextDrawer'
-import { THEMES, type ThemeId } from './components/ThemeSwitcher'
+import { THEMES, initialTheme, type ThemeId } from './components/ThemeSwitcher'
 import TopChrome from './components/TopChrome'
 import { cn } from './components/ui'
 import { AUTONOMY_GATES, fmtElapsed, useLoop } from './loop/useLoop'
@@ -36,8 +36,30 @@ export default function App() {
   const [loopConfig, setLoopConfig] = useState<LoopConfig>(DEFAULT_LOOP_CONFIG)
   const [reviewApproved, setReviewApproved] = useState(false)
   const [contextOpen, setContextOpen] = useState(false)
-  const [theme, setTheme] = useState<ThemeId>('light')
+  const [theme, setTheme] = useState<ThemeId>(() => initialTheme('analogy'))
   const [paletteOpen, setPaletteOpen] = useState(false)
+  // The IDE's floating chrome, 3-column run view and code surface need width.
+  // Below that, show a graceful notice instead of a broken layout.
+  const [tooNarrow, setTooNarrow] = useState(false)
+  useEffect(() => {
+    // Guard against a transient 0 width during load reporting a false positive.
+    const check = () => {
+      const w = window.innerWidth
+      if (w > 0) setTooNarrow(w < 880)
+    }
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  // Each workflow keeps its own progress. Switching Loop ↔ Spec parks the
+  // stage + review flag for the mode you leave and restores the one you enter,
+  // so nothing is lost mid-run. The engines (sim/loop) and mode-scoped flags
+  // (specPhase, loopEntered…) persist on their own — they're never reset here.
+  const parked = useRef<Record<Mode, { stage: StageId; reviewApproved: boolean }>>({
+    specless: { stage: 'intent', reviewApproved: false },
+    spec: { stage: 'intent', reviewApproved: false },
+  })
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -57,16 +79,14 @@ export default function App() {
   const switchMode = useCallback(
     (m: Mode) => {
       if (m === mode) return
+      // Park where we are in the mode we're leaving…
+      parked.current[mode] = { stage, reviewApproved }
+      // …and resume the mode we're entering exactly where it left off.
       setMode(m)
-      setStage('intent')
-      setSpecPhase('none')
-      setLoopEntered(false)
-      setLoopSubtab('design')
-      setReviewApproved(false)
-      sim.reset()
-      loop.reset()
+      setStage(parked.current[m].stage)
+      setReviewApproved(parked.current[m].reviewApproved)
     },
-    [mode, sim, loop],
+    [mode, stage, reviewApproved],
   )
 
   useEffect(() => {
@@ -115,6 +135,7 @@ export default function App() {
     if (loop.state.status === 'conflict') return 'decision'
     if (loop.state.status === 'gate') return 'sign-off'
     if (loop.state.status === 'exhausted') return 'budget spent'
+    if (loop.state.status === 'accepted') return 'accepted 4/5'
     if (loop.state.status === 'running') return `iter ${loop.state.iteration}`
     if (loop.ready) return 'converged'
     return 'designing'
@@ -140,7 +161,7 @@ export default function App() {
             state: specPhase === 'none' ? 'locked' : specPhase === 'approved' ? 'done' : specPhase === 'generating' ? 'active' : 'attention',
             hint: specPhase === 'draft' ? 'review' : 'drafting',
           },
-          { id: 'tasks', label: 'Tasks', state: taskStageState(), hint: sim.phase === 'input' ? 'decision' : 'executing' },
+          { id: 'tasks', label: 'Tasks', state: taskStageState(), hint: sim.phase === 'input' ? 'decision' : sim.phase === 'flight' ? 'executing' : sim.phase === 'ready' ? 'complete' : 'ready' },
         ]
 
   const stages: StageItem[] = headStages.concat([
@@ -166,6 +187,15 @@ export default function App() {
   const onApproveReview = () => {
     setReviewApproved(true)
     setStage('merge')
+  }
+  const onRequestChanges = () => {
+    // Send the change back for another pass rather than approving it.
+    if (mode === 'specless') {
+      setLoopSubtab('design')
+      setStage('loop')
+    } else {
+      setStage('tasks')
+    }
   }
   const onApproveSpec = () => {
     setSpecPhase('approved')
@@ -216,6 +246,26 @@ export default function App() {
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stages, mode, loopEntered, loop.state.started, runActive, executionReady, reviewApproved])
+
+  if (tooNarrow) {
+    return (
+      <div data-shell="ide" className="relative flex h-screen flex-col items-center justify-center px-8 text-center text-primary">
+        <AppBackdrop />
+        <div className="relative flex max-w-sm flex-col items-center gap-5">
+          <span className="flex h-12 w-12 items-center justify-center rounded-[var(--radius)] bg-accent text-accentink">
+            <span className="h-4 w-4 rounded-full bg-current opacity-90 breathe" />
+          </span>
+          <h1 className="serif-hero font-display text-[26px] font-semibold tracking-[-0.02em]">The IDE needs a wider screen</h1>
+          <p className="text-[14px] leading-relaxed text-secondary">
+            Sutra's loop engine, living code surface and WebAssembly verifier are built for a desktop-sized canvas. Open it on a larger screen — or widen this window — to step inside.
+          </p>
+          <a href={`/?theme=${theme}`} className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-[13px] font-medium text-accentink transition-opacity hover:opacity-90">
+            Back to the Sutra site
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div data-shell="ide" className="relative h-screen overflow-hidden text-primary">
@@ -270,6 +320,7 @@ export default function App() {
             mode={mode}
             approved={reviewApproved}
             onApprove={onApproveReview}
+            onRequestChanges={onRequestChanges}
             iterations={mode === 'specless' ? loop.state.history.length : null}
             accepted={loop.state.status === 'accepted'}
           />

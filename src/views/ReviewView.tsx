@@ -74,15 +74,29 @@ export default function ReviewView({
   mode,
   approved,
   onApprove,
+  onRequestChanges,
   iterations,
   accepted,
 }: {
   mode: Mode
   approved: boolean
   onApprove: () => void
+  onRequestChanges?: () => void
   iterations?: number | null
   accepted?: boolean
 }) {
+  // A partial acceptance (loop budget spent at 4/5) ships with one known gap:
+  // the p99 hot-path signal never came into budget. Reflect that honestly
+  // instead of claiming a clean 5/5 convergence.
+  const GAP_ID = 'p99-overhead'
+  const greenCount = accepted ? SIGNALS.length - 1 : SIGNALS.length
+  const summary =
+    mode === 'specless' && iterations
+      ? accepted
+        ? `accepted at ${greenCount}/${SIGNALS.length} · `
+        : `converged in ${iterations} iteration${iterations > 1 ? 's' : ''} · `
+      : ''
+
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-6xl px-6 pb-28 pt-16">
@@ -90,7 +104,7 @@ export default function ReviewView({
           <Chip tone="accent">{INTENT_ID}</Chip>
           <h1 className="serif-hero font-display text-[23px] font-semibold tracking-[-0.02em]">Idempotency keys for the payment retry flow</h1>
           <span className="ml-auto font-mono text-[11px] text-muted">
-            {mode === 'specless' && iterations ? `converged in ${iterations} iteration${iterations > 1 ? 's' : ''} · ` : ''}
+            {summary}
             {DIFF_TOTALS}
           </span>
           {approved ? <Chip tone="ok">approved</Chip> : accepted ? <Chip tone="warn">1 known gap</Chip> : <Chip tone="info">awaiting approval</Chip>}
@@ -109,22 +123,25 @@ export default function ReviewView({
               </ul>
             </Slab>
 
-            <Slab title="Verification" right={<Chip tone="ok">{SIGNALS.length}/{SIGNALS.length} green</Chip>} bodyClassName="divide-y divide-primary/[0.07]">
-              {SIGNALS.map((s) => (
-                <div key={s.id} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
-                  <span className="mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-ok/16 ring-1 ring-ok/35">
-                    <Check size={10} strokeWidth={3} className="text-ok" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-[12.5px] text-primary">{s.name}</span>
-                      {mode === 'spec' && <span className="rounded bg-primary/[0.06] px-1.5 py-0.5 font-mono text-[9.5px] text-secondary">{s.req}</span>}
+            <Slab title="Verification" right={<Chip tone={accepted ? 'warn' : 'ok'}>{greenCount}/{SIGNALS.length} green</Chip>} bodyClassName="divide-y divide-primary/[0.07]">
+              {SIGNALS.map((s) => {
+                const gap = accepted && s.id === GAP_ID
+                return (
+                  <div key={s.id} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
+                    <span className={cn('mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full', gap ? 'bg-warn/16 ring-1 ring-warn/35' : 'bg-ok/16 ring-1 ring-ok/35')}>
+                      {gap ? <TriangleAlert size={10} strokeWidth={2.5} className="text-warn" /> : <Check size={10} strokeWidth={3} className="text-ok" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-[12.5px] text-primary">{s.name}</span>
+                        {mode === 'spec' && <span className="rounded bg-primary/[0.06] px-1.5 py-0.5 font-mono text-[9.5px] text-secondary">{s.req}</span>}
+                      </div>
+                      <div className="truncate font-mono text-[10px] text-muted">{s.test}</div>
                     </div>
-                    <div className="truncate font-mono text-[10px] text-muted">{s.test}</div>
+                    <span className={cn('shrink-0 text-right text-[11px]', gap ? 'text-warn' : 'text-secondary')}>{gap ? '+6.2ms · over 5ms budget' : s.result}</span>
                   </div>
-                  <span className="shrink-0 text-right text-[11px] text-secondary">{s.result}</span>
-                </div>
-              ))}
+                )
+              })}
             </Slab>
 
             <Detail />
@@ -170,12 +187,12 @@ export default function ReviewView({
               <Button variant="primary" className="w-full" onClick={onApprove} disabled={approved}>
                 {approved ? 'Approved' : 'Approve'} {!approved && <ArrowRight size={13} />}
               </Button>
-              <Button variant="quiet" className="w-full">
+              <Button variant="quiet" className="w-full" onClick={onRequestChanges} disabled={approved || !onRequestChanges}>
                 Request changes
               </Button>
-              <Button variant="danger" className="w-full">
-                Take over manually
-              </Button>
+              <p className="px-0.5 pt-0.5 text-[11px] leading-snug text-muted">
+                {approved ? 'Approved — governance runs next.' : 'Approve to run the governance gate, or send it back for another pass.'}
+              </p>
             </Slab>
           </div>
         </div>

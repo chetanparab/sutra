@@ -3,6 +3,9 @@
 export const REPO_URL = 'https://github.com/chetanparab/sutra'
 export const RELEASES_URL = `${REPO_URL}/releases`
 
+// Sutra is built alongside The Analogy Architect — link back to its home.
+export const ANALOGY_ARCHITECT_URL = 'https://www.theanalogyarchitect.com/'
+
 export const TAGLINE = 'The loop-engineering IDE'
 
 export const HERO_SUB =
@@ -147,5 +150,9 @@ export const FAQ: { q: string; a: string }[] = [
   {
     q: 'Which agents and models does it use?',
     a: 'Bring your own. Agents are contracts with adapters — MCP, HTTP, local process, or any LLM. The preview ships with a simulated crew (Scout, Builders, Verifier, Sentinel, Hermes) so you can feel the loop before wiring your own.',
+  },
+  {
+    q: 'Is Sutra open source?',
+    a: 'Yes — Apache-2.0, developed in the open on GitHub. This is an early, in-development preview, and contributions are genuinely welcome: issues, ideas and pull requests. The repository has the roadmap, the contributor guide and the security policy.',
   },
 ]
