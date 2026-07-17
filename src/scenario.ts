@@ -295,16 +295,19 @@ export interface GovCheck {
   id: string
   label: string
   hint: string
+  result: string // shown when the check passes
 }
 
 export const GOVERNANCE_CHECKS: GovCheck[] = [
-  { id: 'security', label: 'Security scan', hint: 'semgrep + PCI ruleset over the diff' },
-  { id: 'privacy', label: 'Data privacy', hint: 'PII taint pass over new writes and logs' },
-  { id: 'freeze', label: 'Change freeze', hint: 'deploy calendar window check' },
-  { id: 'audit', label: 'Audit log', hint: 'immutable entry: intent, agents, decisions' },
+  { id: 'security', label: 'Security scan', hint: 'semgrep + PCI ruleset over the diff', result: '0 findings · PCI clean' },
+  { id: 'privacy', label: 'Data privacy', hint: 'PII taint pass over new writes and logs', result: 'no new PII · keys salted' },
+  { id: 'freeze', label: 'Change freeze', hint: 'deploy calendar window check', result: 'deploy window open' },
+  { id: 'audit', label: 'Audit log', hint: 'immutable entry: intent, agents, decisions', result: 'entry #A-4471 written' },
 ]
 
 export const POLICY_REF = 'garuda/policies@a41f2c9'
+export const MERGE_BRANCH = 'payments/idempotency-keys'
+export const AUDIT_REF = 'A-4471'
 
 // ── Blast radius mini-map (SVG coordinates) ─────────────────────────────
 

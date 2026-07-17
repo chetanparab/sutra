@@ -1,5 +1,5 @@
 import { Compass, Eye, FileText, GitMerge, Layers, ListChecks, Play, RotateCcw, SlidersHorizontal, Palette, RefreshCw, Target } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AppBackdrop from './components/AppBackdrop'
 import Conductor, { type Command } from './components/Conductor'
 import ConsoleDock from './components/ConsoleDock'
@@ -39,6 +39,15 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeId>(() => initialTheme('analogy'))
   const [paletteOpen, setPaletteOpen] = useState(false)
 
+  // Each workflow keeps its own progress. Switching Loop ↔ Spec parks the
+  // stage + review flag for the mode you leave and restores the one you enter,
+  // so nothing is lost mid-run. The engines (sim/loop) and mode-scoped flags
+  // (specPhase, loopEntered…) persist on their own — they're never reset here.
+  const parked = useRef<Record<Mode, { stage: StageId; reviewApproved: boolean }>>({
+    specless: { stage: 'intent', reviewApproved: false },
+    spec: { stage: 'intent', reviewApproved: false },
+  })
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
@@ -57,16 +66,14 @@ export default function App() {
   const switchMode = useCallback(
     (m: Mode) => {
       if (m === mode) return
+      // Park where we are in the mode we're leaving…
+      parked.current[mode] = { stage, reviewApproved }
+      // …and resume the mode we're entering exactly where it left off.
       setMode(m)
-      setStage('intent')
-      setSpecPhase('none')
-      setLoopEntered(false)
-      setLoopSubtab('design')
-      setReviewApproved(false)
-      sim.reset()
-      loop.reset()
+      setStage(parked.current[m].stage)
+      setReviewApproved(parked.current[m].reviewApproved)
     },
-    [mode, sim, loop],
+    [mode, stage, reviewApproved],
   )
 
   useEffect(() => {
