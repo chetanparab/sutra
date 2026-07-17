@@ -33,8 +33,15 @@ Config files for the three common hosts are committed, so a deploy is just
   as Vite, output `dist/`.
 - **Netlify** — [`netlify.toml`](netlify.toml). New site from Git; build/publish are
   read from the file.
-- **Cloudflare Pages** — build command `npm run build`, output `dist/`. WASM headers
-  come from [`public/_headers`](public/_headers).
+- **Cloudflare Pages** — two ways:
+  - **GitHub Actions (committed):** [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
+    builds and runs `wrangler pages deploy dist` on every push to `main`. Add two
+    repo secrets and it's live — no dashboard wiring:
+    `CLOUDFLARE_API_TOKEN` (scoped to *Cloudflare Pages: Edit*) and
+    `CLOUDFLARE_ACCOUNT_ID`. Until they're set, the job builds and skips the deploy.
+  - **Dashboard:** Connect to Git → build command `npm run build`, output `dist/`.
+
+  Either way, WASM headers come from [`public/_headers`](public/_headers).
 
 ### The one thing that matters: `.wasm` MIME type
 
