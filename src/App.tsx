@@ -122,6 +122,7 @@ export default function App() {
     if (loop.state.status === 'conflict') return 'decision'
     if (loop.state.status === 'gate') return 'sign-off'
     if (loop.state.status === 'exhausted') return 'budget spent'
+    if (loop.state.status === 'accepted') return 'accepted 4/5'
     if (loop.state.status === 'running') return `iter ${loop.state.iteration}`
     if (loop.ready) return 'converged'
     return 'designing'
@@ -147,7 +148,7 @@ export default function App() {
             state: specPhase === 'none' ? 'locked' : specPhase === 'approved' ? 'done' : specPhase === 'generating' ? 'active' : 'attention',
             hint: specPhase === 'draft' ? 'review' : 'drafting',
           },
-          { id: 'tasks', label: 'Tasks', state: taskStageState(), hint: sim.phase === 'input' ? 'decision' : 'executing' },
+          { id: 'tasks', label: 'Tasks', state: taskStageState(), hint: sim.phase === 'input' ? 'decision' : sim.phase === 'flight' ? 'executing' : sim.phase === 'ready' ? 'complete' : 'ready' },
         ]
 
   const stages: StageItem[] = headStages.concat([
@@ -173,6 +174,15 @@ export default function App() {
   const onApproveReview = () => {
     setReviewApproved(true)
     setStage('merge')
+  }
+  const onRequestChanges = () => {
+    // Send the change back for another pass rather than approving it.
+    if (mode === 'specless') {
+      setLoopSubtab('design')
+      setStage('loop')
+    } else {
+      setStage('tasks')
+    }
   }
   const onApproveSpec = () => {
     setSpecPhase('approved')
@@ -277,6 +287,7 @@ export default function App() {
             mode={mode}
             approved={reviewApproved}
             onApprove={onApproveReview}
+            onRequestChanges={onRequestChanges}
             iterations={mode === 'specless' ? loop.state.history.length : null}
             accepted={loop.state.status === 'accepted'}
           />
