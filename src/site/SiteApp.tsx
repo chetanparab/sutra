@@ -17,7 +17,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import ThemeSwitcher, { THEMES, type ThemeId } from '../components/ThemeSwitcher'
+import ThemeSwitcher, { THEMES, initialTheme, type ThemeId } from '../components/ThemeSwitcher'
 import { Chip, Label, cn } from '../components/ui'
 import { LinkButton, Reveal, Section, useOS, type OS } from './bits'
 import { ARCH, DOWNLOADS, FAQ, FEATURES, HERO_SUB, PHASES_SITE, RELEASES_URL, REPO_URL, STATS, TAGLINE, THESIS } from './content'
@@ -52,7 +52,7 @@ function GithubMark({ size = 16 }: { size?: number }) {
 
 // ── nav ──────────────────────────────────────────────────────────────────
 
-function Nav({ theme, onTheme }: { theme: ThemeId; onTheme: (t: ThemeId) => void }) {
+function Nav({ theme, onTheme, appHref }: { theme: ThemeId; onTheme: (t: ThemeId) => void; appHref: string }) {
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 12)
@@ -94,7 +94,7 @@ function Nav({ theme, onTheme }: { theme: ThemeId; onTheme: (t: ThemeId) => void
             <GithubMark size={17} />
           </a>
           <ThemeSwitcher theme={theme} onChange={onTheme} />
-          <LinkButton href="/app.html" variant="primary">
+          <LinkButton href={appHref} variant="primary">
             Launch the IDE <ArrowRight size={13} />
           </LinkButton>
         </div>
@@ -105,7 +105,7 @@ function Nav({ theme, onTheme }: { theme: ThemeId; onTheme: (t: ThemeId) => void
 
 // ── hero ─────────────────────────────────────────────────────────────────
 
-function Hero({ os }: { os: OS }) {
+function Hero({ os, appHref }: { os: OS; appHref: string }) {
   return (
     <div id="top" className="mx-auto grid w-full max-w-6xl items-center gap-10 px-6 pb-16 pt-36 lg:grid-cols-[1.05fr_0.95fr]">
       <div>
@@ -118,14 +118,19 @@ function Hero({ os }: { os: OS }) {
         </Reveal>
         <Reveal delay={120}>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <LinkButton href="/app.html" variant="primary" size="lg">
+            <LinkButton href={appHref} variant="primary" size="lg">
               <Globe size={15} /> Launch the web IDE
             </LinkButton>
             <LinkButton href="#download" variant="quiet" size="lg">
               <ArrowDown size={14} /> Download for {OS_LABEL[os]}
             </LinkButton>
           </div>
-          <p className="mt-4 text-[11.5px] text-muted">Free preview · nothing to install on the web · ~10 MB native shell for every OS</p>
+          <p className="mt-4 text-[11.5px] text-muted">
+            Free preview · nothing to install on the web ·{' '}
+            <a href={REPO_URL} target="_blank" rel="noreferrer" className="text-secondary underline-offset-2 hover:text-primary hover:underline">
+              open source · Apache-2.0
+            </a>
+          </p>
         </Reveal>
       </div>
 
@@ -155,7 +160,7 @@ function Stats() {
 
 // ── downloads ────────────────────────────────────────────────────────────
 
-function Downloads({ os }: { os: OS }) {
+function Downloads({ os, appHref }: { os: OS; appHref: string }) {
   return (
     <>
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr_1fr_1fr]">
@@ -170,7 +175,7 @@ function Downloads({ os }: { os: OS }) {
               The full IDE in your browser — loop engine, living code surface and the WASM sandbox included. Nothing to install.
             </p>
             <div className="mt-auto pt-5">
-              <LinkButton href="/app.html" variant="primary" className="w-full">
+              <LinkButton href={appHref} variant="primary" className="w-full">
                 Open Sutra <ArrowRight size={13} />
               </LinkButton>
             </div>
@@ -214,7 +219,7 @@ function Downloads({ os }: { os: OS }) {
             Native installers are published to the <a href={RELEASES_URL} target="_blank" rel="noreferrer" className="text-accent underline-offset-2 hover:underline">GitHub Releases</a> page as
             they roll out — signed <span className="font-mono text-[11.5px]">.dmg / .msi / .AppImage</span>. The web IDE is the same engine, available now with nothing to install.
           </span>
-          <LinkButton href="/app.html" variant="primary" className="ml-auto">
+          <LinkButton href={appHref} variant="primary" className="ml-auto">
             Launch the web IDE <ArrowRight size={13} />
           </LinkButton>
         </div>
@@ -226,8 +231,11 @@ function Downloads({ os }: { os: OS }) {
 // ── page ─────────────────────────────────────────────────────────────────
 
 export default function SiteApp() {
-  const [theme, setTheme] = useState<ThemeId>('light')
+  const [theme, setTheme] = useState<ThemeId>(() => initialTheme('analogy'))
   const os = useOS()
+
+  // Carry the visitor's current theme into the IDE so the launch is seamless.
+  const appHref = `/app.html?theme=${theme}`
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -247,8 +255,8 @@ export default function SiteApp() {
       <div className="cine-frame cine-frame-top" />
       <div className="cine-frame cine-frame-bottom" />
 
-      <Nav theme={theme} onTheme={setTheme} />
-      <Hero os={os} />
+      <Nav theme={theme} onTheme={setTheme} appHref={appHref} />
+      <Hero os={os} appHref={appHref} />
       <Stats />
 
       {/* thesis */}
@@ -382,7 +390,7 @@ export default function SiteApp() {
         title="Use it now. Take it everywhere."
         sub="The web IDE runs the full engine today. Native desktop builds are a featherweight Tauri shell over the same codebase — around 10 MB, with the WebAssembly engine inside."
       >
-        <Downloads os={os} />
+        <Downloads os={os} appHref={appHref} />
       </Section>
 
       {/* architecture */}
@@ -433,7 +441,7 @@ export default function SiteApp() {
               Stop shipping hope. <span className="italic font-medium text-accent">Ship convergence.</span>
             </h2>
             <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
-              <LinkButton href="/app.html" variant="primary" size="lg">
+              <LinkButton href={appHref} variant="primary" size="lg">
                 <Globe size={15} /> Launch the web IDE
               </LinkButton>
               <LinkButton href="#download" variant="quiet" size="lg">
@@ -453,14 +461,15 @@ export default function SiteApp() {
             </span>
             <span className="font-display text-[13.5px] font-semibold text-primary">Sutra</span>— the loop-engineering IDE
           </span>
-          <a href="/app.html" className="transition-colors hover:text-primary">Launch</a>
+          <a href={appHref} className="transition-colors hover:text-primary">Launch</a>
           <a href="#download" className="transition-colors hover:text-primary">Download</a>
           <a href={REPO_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 transition-colors hover:text-primary">
-            <GithubMark size={13} /> GitHub
+            <GithubMark size={13} /> Open source · GitHub
           </a>
+          <a href={`${REPO_URL}/blob/main/LICENSE`} target="_blank" rel="noreferrer" className="transition-colors hover:text-primary">Apache-2.0</a>
           <a href="#faq" className="transition-colors hover:text-primary">FAQ</a>
           <span className="ml-auto flex flex-wrap items-center gap-x-6 gap-y-2">
-            <span className="text-faint">Analogy Architect integration — soon</span>
+            <span className="text-faint">Built alongside Analogy Architect</span>
             <span>A concept preview · © 2026 Sutra</span>
           </span>
         </div>

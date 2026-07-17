@@ -1,0 +1,7 @@
+# Cloudflare Pages / Netlify read this file from the site root.
+/*.wasm
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

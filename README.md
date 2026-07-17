@@ -72,6 +72,12 @@ Requires Node 20+.
   (`src/wasm/`): byte-identical on every OS, fully offline, and agent-generated
   code never touches your system directly.
 
+For the full picture — how Sutra moves from today's scripted demo to real
+execution, where files live, and the contracts that let you **bring your own agents
+and your own LLMs** — see [ARCHITECTURE.md](./ARCHITECTURE.md). To ship it, see
+[DEPLOY.md](./DEPLOY.md); Sutra deploys independently, with no other project
+attached.
+
 ## Contributing
 
 Contributions are welcome — please read [CONTRIBUTING.md](./CONTRIBUTING.md) and

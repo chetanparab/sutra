@@ -2,9 +2,28 @@ import { Check, Palette } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from './ui'
 
-export type ThemeId = 'light' | 'mono' | 'tactile' | 'dark' | 'cinematic'
+export type ThemeId = 'analogy' | 'light' | 'mono' | 'tactile' | 'dark' | 'cinematic'
+
+export const THEME_IDS: ThemeId[] = ['analogy', 'light', 'mono', 'tactile', 'dark', 'cinematic']
+
+export function isThemeId(v: unknown): v is ThemeId {
+  return typeof v === 'string' && (THEME_IDS as string[]).includes(v)
+}
+
+// Carries the theme across the site → IDE launch (via ?theme=) so the IDE opens
+// in whatever theme the visitor was browsing. They can still switch in-app.
+export function initialTheme(fallback: ThemeId = 'analogy'): ThemeId {
+  try {
+    const p = new URLSearchParams(window.location.search).get('theme')
+    if (isThemeId(p)) return p
+  } catch {
+    /* ignore */
+  }
+  return fallback
+}
 
 export const THEMES: { id: ThemeId; name: string; blurb: string; swatch: [string, string, string] }[] = [
+  { id: 'analogy', name: 'Analogy', blurb: 'Warm ink + orange — the Analogy Architect look', swatch: ['#0b0b0d', '#161619', '#ff6b35'] },
   { id: 'light', name: 'Luminous', blurb: 'Warm paper, editorial, easy on the eyes', swatch: ['#f2efe7', '#fbfaf6', '#4b40cf'] },
   { id: 'mono', name: 'Editorial', blurb: 'Near-mono, print-grade, type does the work', swatch: ['#f6f5f1', '#14120c', '#d63f26'] },
   { id: 'tactile', name: 'Tactile', blurb: 'Soft clay, cushioned material, calm', swatch: ['#e7e2d9', '#ece7de', '#3f8f86'] },

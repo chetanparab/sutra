@@ -4,7 +4,7 @@ import AppBackdrop from './components/AppBackdrop'
 import Conductor, { type Command } from './components/Conductor'
 import ConsoleDock from './components/ConsoleDock'
 import ContextDrawer from './components/ContextDrawer'
-import { THEMES, type ThemeId } from './components/ThemeSwitcher'
+import { THEMES, initialTheme, type ThemeId } from './components/ThemeSwitcher'
 import TopChrome from './components/TopChrome'
 import { cn } from './components/ui'
 import { AUTONOMY_GATES, fmtElapsed, useLoop } from './loop/useLoop'
@@ -36,7 +36,7 @@ export default function App() {
   const [loopConfig, setLoopConfig] = useState<LoopConfig>(DEFAULT_LOOP_CONFIG)
   const [reviewApproved, setReviewApproved] = useState(false)
   const [contextOpen, setContextOpen] = useState(false)
-  const [theme, setTheme] = useState<ThemeId>('light')
+  const [theme, setTheme] = useState<ThemeId>(() => initialTheme('analogy'))
   const [paletteOpen, setPaletteOpen] = useState(false)
 
   useEffect(() => {
