@@ -33,15 +33,21 @@ Config files for the three common hosts are committed, so a deploy is just
   as Vite, output `dist/`.
 - **Netlify** — [`netlify.toml`](netlify.toml). New site from Git; build/publish are
   read from the file.
-- **Cloudflare Pages** — two ways:
-  - **GitHub Actions (committed):** [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
-    builds and runs `wrangler pages deploy dist` on every push to `main`. Add two
-    repo secrets and it's live — no dashboard wiring:
-    `CLOUDFLARE_API_TOKEN` (scoped to *Cloudflare Pages: Edit*) and
-    `CLOUDFLARE_ACCOUNT_ID`. Until they're set, the job builds and skips the deploy.
-  - **Dashboard:** Connect to Git → build command `npm run build`, output `dist/`.
+- **Cloudflare Pages** *(recommended — zero secrets)* — **Connect to Git**: dashboard
+  → Workers & Pages → Create → Pages → Connect to Git → pick `chetanparab/sutra` →
+  build command `npm run build`, output directory `dist/`. Cloudflare's GitHub App
+  builds on Cloudflare, so **no deploy token lives in this repo** and pull requests
+  get their own safe preview URLs. Auto-deploys on every push to `main`. WASM headers
+  come from [`public/_headers`](public/_headers).
 
-  Either way, WASM headers come from [`public/_headers`](public/_headers).
+> **Why no committed deploy workflow / token?** This is a public repo. Every option
+> above connects the host to GitHub through the host's own app — there is **no API
+> token stored in the repo or its Actions secrets**, so there is nothing for a fork
+> or a malicious PR to leak. That is the safe default for open source. (Sutra also
+> has no runtime secrets of its own — it's a static site — so preview builds are
+> risk-free.) If you ever prefer an in-repo `wrangler pages deploy` workflow instead,
+> scope the token to *Cloudflare Pages: Edit* only and add it as a repo secret; a
+> `push`-triggered workflow never exposes secrets to fork PRs.
 
 ### The one thing that matters: `.wasm` MIME type
 
