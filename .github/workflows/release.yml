@@ -1,0 +1,56 @@
+name: Release
+
+# Cut a release by pushing a version tag, e.g. `git tag v0.1.0 && git push --tags`.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  # Ships the self-hostable web build with every tag — works today.
+  web:
+    name: Web bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Package web build
+        run: cd dist && zip -r "../sutra-web-${{ github.ref_name }}.zip" . && cd ..
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" sutra-web-*.zip --title "Sutra ${{ github.ref_name }}" --generate-notes
+
+  # Native desktop installers (.dmg / .msi / .AppImage).
+  # Enable once a Tauri project (`src-tauri/`) is added. It builds on each OS and
+  # attaches the installers to the same release. Requires signing secrets:
+  #   macOS   → APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
+  #             APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID (notarization)
+  #   Windows → WINDOWS_CERTIFICATE, WINDOWS_CERTIFICATE_PASSWORD
+  #
+  # native:
+  #   name: Native (${{ matrix.os }})
+  #   needs: web
+  #   strategy:
+  #     matrix:
+  #       os: [macos-latest, windows-latest, ubuntu-latest]
+  #   runs-on: ${{ matrix.os }}
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with: { node-version: 20, cache: npm }
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - run: npm ci
+  #     - uses: tauri-apps/tauri-action@v0
+  #       env:
+  #         GITHUB_TOKEN: ${{ github.token }}
+  #       with:
+  #         tagName: ${{ github.ref_name }}
+  #         releaseName: 'Sutra ${{ github.ref_name }}'

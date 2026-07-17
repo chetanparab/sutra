@@ -1,0 +1,104 @@
+import { Activity, CalendarClock, Command } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { APP_NAME } from '../scenario'
+import type { Mode } from '../types'
+import ThemeSwitcher, { type ThemeId } from './ThemeSwitcher'
+import { cn } from './ui'
+
+function Clock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <span className="font-mono tnum text-secondary">
+      {new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' }).format(now)}
+      <span className="text-faint"> IST</span>
+    </span>
+  )
+}
+
+export default function TopChrome({
+  mode,
+  onModeChange,
+  runTime,
+  theme,
+  onThemeChange,
+  onOpenCommand,
+}: {
+  mode: Mode
+  onModeChange: (m: Mode) => void
+  runTime: string | null
+  theme: ThemeId
+  onThemeChange: (t: ThemeId) => void
+  onOpenCommand: () => void
+}) {
+  const [p99, setP99] = useState(412)
+  useEffect(() => {
+    const id = setInterval(() => setP99((v) => Math.max(380, Math.min(440, v + Math.round((Math.random() - 0.5) * 8)))), 2400)
+    return () => clearInterval(id)
+  }, [])
+
+  return (
+    <>
+      <div className="absolute left-6 top-5 z-30 flex items-center gap-3.5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-[var(--radius)] bg-accent text-accentink">
+            <span className="h-3 w-3 rounded-full bg-current opacity-90 breathe" />
+          </span>
+          <div className="leading-none">
+            <div className="font-display text-[16px] font-semibold tracking-[0.02em]">{APP_NAME}</div>
+            <div className="label mt-1" style={{ letterSpacing: '0.2em' }}>
+              Loop Engine
+            </div>
+          </div>
+        </div>
+
+        <div className="ml-1 flex rounded-full border border-primary/12 bg-primary/[0.03] p-0.5">
+          {(
+            [
+              { v: 'specless' as Mode, label: 'Loop' },
+              { v: 'spec' as Mode, label: 'Spec' },
+            ] as const
+          ).map((m) => (
+            <button
+              key={m.v}
+              onClick={() => onModeChange(m.v)}
+              className={cn('rounded-full px-3.5 py-1 text-[12px] font-medium transition-all', mode === m.v ? 'bg-primary/10 text-primary' : 'text-muted hover:text-secondary')}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="absolute right-6 top-5 z-30 flex items-center gap-4 text-[11.5px] text-muted">
+        <span className="flex items-center gap-1.5 text-ok">
+          <span className="h-1.5 w-1.5 rounded-full bg-ok soft-pulse" /> live
+        </span>
+        <span className="hidden items-center gap-1.5 sm:flex">
+          <Activity size={12} className="text-accent" /> p99 <span className="font-mono tnum text-secondary">{p99}ms</span>
+        </span>
+        <span className="hidden items-center gap-1.5 text-warn md:flex">
+          <CalendarClock size={12} /> freeze Fri 18:00
+        </span>
+        {runTime && (
+          <span className="font-mono tnum text-secondary">
+            T+<span className="text-primary">{runTime}</span>
+          </span>
+        )}
+        <Clock />
+        <button
+          onClick={onOpenCommand}
+          title="Command bar"
+          className="flex h-8 items-center gap-1.5 rounded-full border border-primary/12 bg-primary/[0.03] pl-2.5 pr-1.5 text-[11.5px] text-secondary transition-colors hover:border-primary/25 hover:text-primary"
+        >
+          <Command size={12} />
+          <kbd className="rounded border border-primary/12 bg-primary/[0.04] px-1 font-mono text-[10px] text-muted">⌘K</kbd>
+        </button>
+        <ThemeSwitcher theme={theme} onChange={onThemeChange} />
+      </div>
+    </>
+  )
+}

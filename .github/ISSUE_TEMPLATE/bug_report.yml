@@ -1,0 +1,33 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly
+labels: ['bug']
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: Browser + version, OS, theme, web or desktop
+  - type: checkboxes
+    id: not-security
+    attributes:
+      label: Confirmation
+      options:
+        - label: This is not a security vulnerability (those go through SECURITY.md, privately)
+          required: true
