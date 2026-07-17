@@ -82,6 +82,16 @@ function Nav({ theme, onTheme, appHref }: { theme: ThemeId; onTheme: (t: ThemeId
           <a href="#themes" className="transition-colors hover:text-primary">Design</a>
           <a href="#download" className="transition-colors hover:text-primary">Download</a>
           <a href="#faq" className="transition-colors hover:text-primary">FAQ</a>
+          <span className="h-3 w-px bg-primary/15" aria-hidden />
+          <a
+            href={ANALOGY_ARCHITECT_URL}
+            target="_blank"
+            rel="noreferrer"
+            title="The Analogy Architect — the toolkit Sutra is part of"
+            className="inline-flex items-center gap-1 transition-colors hover:text-primary"
+          >
+            Analogy Architect <ArrowUpRight size={12} className="text-muted" />
+          </a>
         </nav>
 
         <div className="ml-auto flex items-center gap-2.5">
