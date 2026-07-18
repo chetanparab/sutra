@@ -1,4 +1,4 @@
-import { Compass, Eye, FileText, GitMerge, Layers, ListChecks, Play, RotateCcw, SlidersHorizontal, Palette, RefreshCw, Target } from 'lucide-react'
+import { Compass, Eye, FileText, GitMerge, Layers, ListChecks, Play, RotateCcw, SlidersHorizontal, Palette, RefreshCw, Square, Target } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AppBackdrop from './components/AppBackdrop'
 import Conductor, { type Command } from './components/Conductor'
@@ -6,8 +6,11 @@ import ConsoleDock from './components/ConsoleDock'
 import ContextDrawer from './components/ContextDrawer'
 import { THEMES, initialTheme, type ThemeId } from './components/ThemeSwitcher'
 import TopChrome from './components/TopChrome'
-import { cn } from './components/ui'
+import { Button, cn } from './components/ui'
+import { isDesktop } from './desktop/engine'
+import type { RealLoopArgs } from './desktop/realLoop'
 import { AUTONOMY_GATES, fmtElapsed, useLoop } from './loop/useLoop'
+import { useRealLoop } from './loop/useRealLoop'
 import type { LoopConfig } from './loop/types'
 import { useSimulation } from './sim/useSimulation'
 import type { LoopSubtab, Mode, SpecPhase, StageId, StageItem, StageState } from './types'
@@ -15,6 +18,9 @@ import IntentView from './views/IntentView'
 import LoopDesignView from './views/LoopDesignView'
 import LoopRunView from './views/LoopRunView'
 import MergeView from './views/MergeView'
+import RealLaunchPanel from './views/RealLaunchPanel'
+import RealMergeView from './views/RealMergeView'
+import RealReviewView from './views/RealReviewView'
 import ReviewView from './views/ReviewView'
 import SpecView from './views/SpecView'
 import TasksView from './views/TasksView'
@@ -28,6 +34,12 @@ const DEFAULT_LOOP_CONFIG: LoopConfig = {
 export default function App() {
   const sim = useSimulation()
   const loop = useLoop()
+  // Real mode (desktop shell only): the same Loop contract, produced by the
+  // actual engine's event stream instead of the scripted reducer. Whichever
+  // is live feeds every loop-driven surface below.
+  const real = useRealLoop()
+  const [engineMode, setEngineMode] = useState<'demo' | 'real'>('demo')
+  const activeLoop = engineMode === 'real' ? real.loop : loop
   const [mode, setMode] = useState<Mode>('specless')
   const [stage, setStage] = useState<StageId>('intent')
   const [specPhase, setSpecPhase] = useState<SpecPhase>('none')
@@ -96,7 +108,7 @@ export default function App() {
   }, [specPhase])
 
   const dispatched = mode === 'specless' ? loopEntered : specPhase !== 'none'
-  const executionReady = mode === 'specless' ? loop.ready : sim.phase === 'ready'
+  const executionReady = mode === 'specless' ? activeLoop.ready : sim.phase === 'ready'
 
   const onDispatch = () => {
     if (mode === 'specless') {
@@ -109,13 +121,37 @@ export default function App() {
     }
   }
   const launchLoop = () => {
+    // Launching the demo takes the stage back from real mode — never leave a
+    // real engine running unseen behind it.
+    if (real.running) void real.abort()
+    setEngineMode('demo')
     loop.launch(loopConfig)
     setLoopSubtab('run')
     setStage('loop')
   }
+  const launchReal = async (args: RealLoopArgs) => {
+    setEngineMode('real')
+    setReviewApproved(false)
+    setLoopSubtab('run')
+    setStage('loop')
+    try {
+      await real.launch(args)
+    } catch {
+      // launchError is surfaced in the panel; return the user to it.
+      setLoopSubtab('design')
+    }
+  }
   const replay = () => {
     setReviewApproved(false)
     if (mode === 'specless') {
+      if (engineMode === 'real') {
+        // A real run isn't replayable from a button — it costs money and
+        // needs consent. Back to the launch surface instead.
+        real.reset()
+        setLoopSubtab('design')
+        setStage('loop')
+        return
+      }
       loop.launch(loopConfig)
       setLoopSubtab('run')
       setStage('loop')
@@ -127,17 +163,17 @@ export default function App() {
 
   const loopStageState = (): StageState => {
     if (!loopEntered) return 'locked'
-    if (loop.ready) return 'done'
-    if (loop.state.status === 'conflict' || loop.state.status === 'gate' || loop.state.status === 'exhausted') return 'attention'
+    if (activeLoop.ready) return 'done'
+    if (activeLoop.state.status === 'conflict' || activeLoop.state.status === 'gate' || activeLoop.state.status === 'exhausted') return 'attention'
     return 'active'
   }
   const loopHint = () => {
-    if (loop.state.status === 'conflict') return 'decision'
-    if (loop.state.status === 'gate') return 'sign-off'
-    if (loop.state.status === 'exhausted') return 'budget spent'
-    if (loop.state.status === 'accepted') return 'accepted 4/5'
-    if (loop.state.status === 'running') return `iter ${loop.state.iteration}`
-    if (loop.ready) return 'converged'
+    if (activeLoop.state.status === 'conflict') return 'decision'
+    if (activeLoop.state.status === 'gate') return 'sign-off'
+    if (activeLoop.state.status === 'exhausted') return engineMode === 'real' ? 'stopped' : 'budget spent'
+    if (activeLoop.state.status === 'accepted') return 'accepted 4/5'
+    if (activeLoop.state.status === 'running') return `iter ${activeLoop.state.iteration}`
+    if (activeLoop.ready) return 'converged'
     return 'designing'
   }
   const taskStageState = (): StageState => {
@@ -173,15 +209,15 @@ export default function App() {
     const item = stages.find((s) => s.id === stage)
     if (!item || item.state === 'locked') setStage('intent')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, stage, specPhase, sim.phase, loop.state.status, loopEntered, reviewApproved])
+  }, [mode, stage, specPhase, sim.phase, activeLoop.state.status, loopEntered, reviewApproved])
 
   const activeStageIdx = (() => {
     const i = stages.findIndex((s) => s.state === 'active' || s.state === 'attention' || s.state === 'available')
     return i >= 0 ? i : Math.max(0, stages.filter((s) => s.state === 'done').length - 1)
   })()
 
-  const runActive = mode === 'specless' ? loop.state.started : sim.state.started
-  const runTimeMs = mode === 'specless' ? (loop.state.started ? loop.state.t : null) : sim.state.started ? sim.state.t : null
+  const runActive = mode === 'specless' ? activeLoop.state.started : sim.state.started
+  const runTimeMs = mode === 'specless' ? (activeLoop.state.started ? activeLoop.state.t : null) : sim.state.started ? sim.state.t : null
   const cta = executionReady && !reviewApproved && stage !== 'review' ? { label: 'Open review', onClick: () => setStage('review') } : null
 
   const onApproveReview = () => {
@@ -275,9 +311,9 @@ export default function App() {
       <div className="cine-frame cine-frame-bottom" />
       <TopChrome mode={mode} onModeChange={switchMode} runTime={runTimeMs !== null ? fmtElapsed(runTimeMs) : null} theme={theme} onThemeChange={setTheme} onOpenCommand={() => setPaletteOpen(true)} />
 
-      {/* loop design/run switch — floats top-center */}
+      {/* loop design/run switch — floats top-center; the real-run kill switch rides beside it */}
       {stage === 'loop' && loopEntered && (
-        <div className="absolute left-1/2 top-5 z-30 -translate-x-1/2">
+        <div className="absolute left-1/2 top-5 z-30 flex -translate-x-1/2 items-center gap-2.5">
           <div className="surface flex items-center gap-1 rounded-full p-0.5">
             {(
               [
@@ -285,7 +321,7 @@ export default function App() {
                 { id: 'run' as LoopSubtab, label: 'Run' },
               ] as const
             ).map((t) => {
-              const disabled = t.id === 'run' && !loop.state.started
+              const disabled = t.id === 'run' && !activeLoop.state.started
               return (
                 <button
                   key={t.id}
@@ -302,30 +338,59 @@ export default function App() {
               )
             })}
           </div>
+          {engineMode === 'real' && real.running && (
+            <Button variant="danger" size="sm" onClick={() => void real.abort()}>
+              <Square size={11} /> Stop loop
+            </Button>
+          )}
         </div>
       )}
 
       <main className="absolute inset-0 flex flex-col">
         {stage === 'intent' && <IntentView mode={mode} dispatched={dispatched} onDispatch={onDispatch} />}
         {stage === 'loop' &&
-          (loopSubtab === 'run' && loop.state.started ? (
-            <LoopRunView loop={loop} onOpenReview={() => setStage('review')} />
+          (loopSubtab === 'run' && activeLoop.state.started ? (
+            <LoopRunView loop={activeLoop} onOpenReview={() => setStage('review')} />
           ) : (
-            <LoopDesignView config={loopConfig} onChange={setLoopConfig} onLaunch={launchLoop} />
+            <LoopDesignView
+              config={loopConfig}
+              onChange={setLoopConfig}
+              onLaunch={launchLoop}
+              realPanel={
+                isDesktop() ? (
+                  <RealLaunchPanel
+                    maxIterations={loopConfig.maxIterations}
+                    running={real.running}
+                    launchError={real.meta.launchError}
+                    onLaunch={(args) => void launchReal(args)}
+                  />
+                ) : undefined
+              }
+            />
           ))}
         {stage === 'spec' && <SpecView specPhase={specPhase} onApprove={onApproveSpec} />}
         {stage === 'tasks' && <TasksView sim={sim} onStart={() => sim.start()} />}
-        {stage === 'review' && (
-          <ReviewView
-            mode={mode}
-            approved={reviewApproved}
-            onApprove={onApproveReview}
-            onRequestChanges={onRequestChanges}
-            iterations={mode === 'specless' ? loop.state.history.length : null}
-            accepted={loop.state.status === 'accepted'}
-          />
-        )}
-        {stage === 'merge' && <MergeView reviewApproved={reviewApproved} />}
+        {stage === 'review' &&
+          (engineMode === 'real' ? (
+            <RealReviewView
+              meta={real.meta}
+              iterations={real.loop.state.history.length}
+              costUsd={real.meta.outcome?.totalCostUsd ?? null}
+              approved={reviewApproved}
+              onApprove={onApproveReview}
+              onRequestChanges={onRequestChanges}
+            />
+          ) : (
+            <ReviewView
+              mode={mode}
+              approved={reviewApproved}
+              onApprove={onApproveReview}
+              onRequestChanges={onRequestChanges}
+              iterations={mode === 'specless' ? loop.state.history.length : null}
+              accepted={loop.state.status === 'accepted'}
+            />
+          ))}
+        {stage === 'merge' && (engineMode === 'real' ? <RealMergeView meta={real.meta} /> : <MergeView reviewApproved={reviewApproved} />)}
       </main>
 
       <ConsoleDock

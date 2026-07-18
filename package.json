@@ -26,6 +26,7 @@
     "@jitl/quickjs-singlefile-browser-release-sync": "^0.32.0",
     "@jitl/quickjs-wasmfile-release-sync": "^0.32.0",
     "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
     "lucide-react": "^1.25.0",
     "quickjs-emscripten": "^0.32.0",
     "react": "^19.1.0",

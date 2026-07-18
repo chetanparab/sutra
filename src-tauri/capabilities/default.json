@@ -1,11 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
+  "description": "Least privilege for the webview: core defaults plus the folder-picker dialog. No shell access — every sidecar interaction goes through typed Rust commands.",
   "windows": [
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:default",
+    "dialog:allow-open"
   ]
 }

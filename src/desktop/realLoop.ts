@@ -56,6 +56,13 @@ export interface RealLoopArgs {
   consentToRun: boolean
   maxIterations: number
   reflectModel?: string
+  /**
+   * Session-typed API key, handed to the Rust host which sets it as an env
+   * var on the engine child only — never argv, never disk, never logged.
+   * Empty means "inherit the shell env" (the dev-terminal case). The OS
+   * keychain replaces per-session typing in issue #28.
+   */
+  apiKey?: string
 }
 
 export interface RealLoopHandlers {
@@ -102,6 +109,7 @@ export async function startRealLoop(args: RealLoopArgs, handlers: RealLoopHandle
         consent_to_run: args.consentToRun,
         max_iterations: args.maxIterations,
         reflect_model: args.reflectModel ?? null,
+        api_key: args.apiKey ?? null,
       },
     })
   } catch (err) {
@@ -113,4 +121,25 @@ export async function startRealLoop(args: RealLoopArgs, handlers: RealLoopHandle
     abort: () => invoke('loop_abort'),
     dispose: () => unlisteners.forEach((un) => un()),
   }
+}
+
+/** Native folder picker — the workspace-root guard's user-facing face. Null if dismissed. */
+export async function pickWorkspaceFolder(): Promise<string | null> {
+  if (!isDesktop()) return null
+  const { open } = await import('@tauri-apps/plugin-dialog')
+  const picked = await open({ directory: true, multiple: false, title: 'Choose the repo the loop may touch' })
+  return typeof picked === 'string' ? picked : null
+}
+
+export interface MergeClickResult {
+  ok: boolean
+  message: string
+}
+
+/** The "Merge to main" click — runs only when the human clicks it. */
+export async function mergeBranch(workspacePath: string, branchName: string, targetBranch: string): Promise<MergeClickResult> {
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<MergeClickResult>('merge_branch', {
+    args: { workspace_path: workspacePath, branch_name: branchName, target_branch: targetBranch },
+  })
 }
