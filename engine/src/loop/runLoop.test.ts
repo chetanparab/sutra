@@ -198,3 +198,57 @@ test('the loop requires an existing repo', async () => {
     /requires an existing repo/,
   )
 })
+
+test('autopilot is refused in real mode unless explicitly allowed (issue #39)', async () => {
+  await withTask2Repo(async (root) => {
+    // default: autopilot without the opt-in is refused before any work happens
+    await assert.rejects(
+      runLoop({
+        workspacePath: root,
+        intent: TASK_2.intent,
+        provider: scriptedProvider([]),
+        model: 'test',
+        verifyCommand: TASK_2.verifyCommand,
+        consentToRun: true,
+        autonomy: 'autopilot',
+      }),
+      /Autopilot is not allowed in real mode by default/,
+    )
+
+    // guided (the default) is always fine
+    const guided = await runLoop({
+      workspacePath: root,
+      intent: TASK_2.intent,
+      provider: scriptedProvider([
+        { text: '', toolCalls: [{ id: 'g', name: 'edit_file', arguments: { path: 'src/stats.mjs', oldString: '  let total = 0', newString: '  if (nums.length === 0) return 0\n  let total = 0' } }] },
+        { text: 'done' },
+      ]),
+      model: 'test',
+      verifyCommand: TASK_2.verifyCommand,
+      consentToRun: true,
+      autonomy: 'guided',
+      maxIterations: 1,
+    })
+    assert.equal(guided.status, 'converged')
+  })
+})
+
+test('autopilot runs only with the deliberate allowAutopilot opt-in', async () => {
+  await withTask2Repo(async (root) => {
+    const outcome = await runLoop({
+      workspacePath: root,
+      intent: TASK_2.intent,
+      provider: scriptedProvider([
+        { text: '', toolCalls: [{ id: 'a', name: 'edit_file', arguments: { path: 'src/stats.mjs', oldString: '  let total = 0', newString: '  if (nums.length === 0) return 0\n  let total = 0' } }] },
+        { text: 'done' },
+      ]),
+      model: 'test',
+      verifyCommand: TASK_2.verifyCommand,
+      consentToRun: true,
+      autonomy: 'autopilot',
+      allowAutopilot: true,
+      maxIterations: 1,
+    })
+    assert.equal(outcome.status, 'converged')
+  })
+})

@@ -51,6 +51,17 @@ export interface RunLoopParams {
   signal?: AbortSignal
   baseBranch?: string
   /**
+   * Autonomy for this real run (ROADMAP.md Phase 4, issue #39). Real mode
+   * requires at least `guided` until there's a track record: `autopilot` is
+   * refused unless `allowAutopilot` is explicitly set. Not the out-of-the-box
+   * behavior — the opt-in is a deliberate act, enforced here at the engine
+   * boundary (not just in the UI), so a caller can't quietly bypass it.
+   * Defaults to `guided`.
+   */
+  autonomy?: 'copilot' | 'guided' | 'autopilot'
+  /** Opt in to autopilot in real mode. Must be literally true; default refuses. */
+  allowAutopilot?: boolean
+  /**
    * Fired the moment each flight-recorder event is recorded — the live stream
    * the desktop shell forwards to the webview. The same objects land in the
    * outcome's `events` array; this is timing, not extra information.
@@ -78,6 +89,16 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
   const workspaceRoot = resolve(params.workspacePath)
   if (!existsSync(workspaceRoot)) {
     throw new Error(`No repo at ${workspaceRoot}. The loop requires an existing repo — it does not bootstrap fixtures.`)
+  }
+
+  // Autopilot in real mode is opt-in, not default (issue #39). Refuse here at
+  // the engine boundary so no caller — CLI, desktop, or a future one — can
+  // reach it without the deliberate flag.
+  if (params.autonomy === 'autopilot' && params.allowAutopilot !== true) {
+    throw new Error(
+      'Autopilot is not allowed in real mode by default. Real runs require at least "guided" until there is a track record. ' +
+        'Pass allowAutopilot: true to override deliberately.',
+    )
   }
 
   const provider = params.provider ?? resolveProvider(params.providerId ?? '')

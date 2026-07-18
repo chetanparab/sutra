@@ -137,6 +137,14 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
     process.stdin.unref()
   }
 
+  // Autonomy (issue #39): default guided; autopilot needs the deliberate
+  // --allow-autopilot, which the engine itself re-checks.
+  const autonomy = (flags.autonomy as 'copilot' | 'guided' | 'autopilot' | undefined) ?? 'guided'
+  if (!['copilot', 'guided', 'autopilot'].includes(autonomy)) {
+    console.error('--autonomy must be one of: copilot, guided, autopilot')
+    process.exit(1)
+  }
+
   const outcome = await runLoop({
     workspacePath,
     intent,
@@ -146,6 +154,8 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
     verifyCommand: flags['verify-cmd'],
     consentToRun: true,
     maxIterations,
+    autonomy,
+    allowAutopilot: flags['allow-autopilot'] === 'true',
     verifyTimeoutMs: flags['verify-timeout-ms'] ? Number(flags['verify-timeout-ms']) : undefined,
     signal: controller.signal,
     onEvent: ndjson ? (e) => console.log(JSON.stringify({ type: 'event', ...e })) : undefined,
