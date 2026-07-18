@@ -27,6 +27,13 @@ export function makeToyRepo(targetPath: string): void {
   git(['init', '--initial-branch=main'])
   git(['config', 'user.email', 'engine@sutra.local'])
   git(['config', 'user.name', 'Sutra Engine Fixture'])
+  // Pin line endings so the scripted, hardcoded-LF apply-test-edit matches on
+  // every platform. Windows git defaults to core.autocrlf=true, which would
+  // rewrite this LF fixture to CRLF in the working tree and break the exact
+  // oldString match. (Real edits are fine — the model reads and matches the
+  // file's actual bytes; only this fixed-string fixture needs the guarantee.)
+  git(['config', 'core.autocrlf', 'false'])
+  git(['config', 'core.eol', 'lf'])
   git(['add', '-A'])
   git(['commit', '-m', 'Initial toy-repo fixture'])
 }
