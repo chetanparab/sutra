@@ -1,12 +1,19 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Least privilege for the webview: core defaults plus the folder-picker dialog. No shell access — every sidecar interaction goes through typed Rust commands.",
+  "description": "Least privilege for the webview: core defaults, the folder-picker dialog, and opening external web links in the system browser (the UI's own hardcoded https links — repo content is rendered as text, never as an auto-opening link). No command execution: every sidecar interaction goes through typed Rust commands.",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
-    "dialog:allow-open"
+    "dialog:allow-open",
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        { "url": "https://*" },
+        { "url": "http://localhost:*" }
+      ]
+    }
   ]
 }
