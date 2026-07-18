@@ -43,3 +43,5 @@ Thumbs.db
 # committed, see engine/evals/fixtures/makeToyRepo.ts
 engine/evals/fixtures/*/
 dist-sidecar/
+src-tauri/target/
+src-tauri/gen/

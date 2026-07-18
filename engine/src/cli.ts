@@ -16,6 +16,9 @@ function usage(): never {
   console.error(`sutra-engine — Phase 0/1/2 CLI (see ROADMAP.md)
 
 Usage:
+  npm run engine -- version
+      Prints {engine, node} as JSON — the desktop shell's sidecar handshake.
+
   npm run engine -- apply-test-edit <workspace-path>
       Phase 0 demo: applies a scripted edit to src/greet.ts on a new shadow
       branch and commits it. If <workspace-path> doesn't exist, materializes
@@ -143,10 +146,21 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
   }
 }
 
+/**
+ * The desktop shell's handshake target. Bumped by hand when the sidecar
+ * protocol changes shape — the shell refuses to drive an engine whose major
+ * version it doesn't recognize (wired with the real IPC in the next step).
+ */
+const ENGINE_VERSION = '2.0.0-alpha.0'
+
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2)
 
   switch (command) {
+    case 'version': {
+      console.log(JSON.stringify({ engine: ENGINE_VERSION, node: process.version }))
+      return
+    }
     case 'apply-test-edit': {
       if (!rest[0]) usage()
       const result = applyTestEdit(rest[0])

@@ -1,9 +1,30 @@
-import { Activity, CalendarClock, Command, Home } from 'lucide-react'
+import { Activity, CalendarClock, Command, Cpu, Home } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { fetchEngineVersion, type EngineInfo } from '../desktop/engine'
 import { APP_NAME } from '../scenario'
 import type { Mode } from '../types'
 import ThemeSwitcher, { type ThemeId } from './ThemeSwitcher'
 import { cn } from './ui'
+
+/** Renders only inside the desktop shell, where the sidecar handshake succeeds. */
+function EngineChip() {
+  const [info, setInfo] = useState<EngineInfo | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetchEngineVersion().then((v) => {
+      if (!cancelled) setInfo(v)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  if (!info) return null
+  return (
+    <span className="hidden items-center gap-1.5 lg:flex" title={`engine ${info.engine} · node ${info.node}`}>
+      <Cpu size={12} className="text-accent" /> engine <span className="font-mono tnum text-secondary">{info.engine}</span>
+    </span>
+  )
+}
 
 function Clock() {
   const [now, setNow] = useState(() => new Date())
@@ -84,6 +105,7 @@ export default function TopChrome({
         <span className="flex items-center gap-1.5 text-ok">
           <span className="h-1.5 w-1.5 rounded-full bg-ok soft-pulse" /> live
         </span>
+        <EngineChip />
         <span className="hidden items-center gap-1.5 sm:flex">
           <Activity size={12} className="text-accent" /> p99 <span className="font-mono tnum text-secondary">{p99}ms</span>
         </span>
