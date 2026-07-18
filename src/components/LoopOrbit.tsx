@@ -78,7 +78,7 @@ export default function LoopOrbit({
   }
 
   return (
-    <div className="relative flex items-center justify-center" style={{ width: 'min(58vh, 520px)', height: 'min(58vh, 520px)' }}>
+    <div className="relative flex items-center justify-center" style={{ width: 'min(58vh, 520px, 82vw)', height: 'min(58vh, 520px, 82vw)' }}>
       <div
         className={running ? 'orbit-slow' : ''}
         style={{
