@@ -100,6 +100,15 @@ type Action =
   | { type: 'launch'; config: LoopConfig }
   | { type: 'reset'; config: LoopConfig }
   | { type: 'tick'; dt: number }
+  /**
+   * Advance to the next phase because the phase's real work actually finished —
+   * the seam for real-engine mode (ROADMAP.md Phase 2): a real Build/Verify/
+   * Reflect resolves an async call at some unknowable moment, so a wall-clock
+   * duration can't drive the transition the way the scripted demo's `tick`
+   * does. The desktop shell (Phase 3) dispatches this when the engine reports
+   * a phase complete; the scripted demo never dispatches it.
+   */
+  | { type: 'phaseComplete' }
   | { type: 'resolveConflict'; optionId: string }
   | { type: 'approveGate' }
   | { type: 'extend' }
@@ -224,6 +233,11 @@ function reducer(state: LoopState, action: Action): LoopState {
       return next
     }
 
+    case 'phaseComplete': {
+      if (state.status !== 'running') return state
+      return advance(state)
+    }
+
     case 'resolveConflict': {
       if (state.status !== 'conflict') return state
       const opt = LOOP_CONFLICT.options.find((o) => o.id === action.optionId)
@@ -301,6 +315,8 @@ export interface Loop {
   conflict: typeof LOOP_CONFLICT | null
   launch: (config: LoopConfig) => void
   reset: () => void
+  /** Real-engine seam: advance because the phase's actual async work finished. See the Action doc. */
+  phaseComplete: () => void
   resolveConflict: (optionId: string) => void
   approveGate: () => void
   extend: () => void
@@ -350,6 +366,7 @@ export function useLoop(): Loop {
     conflict: state.status === 'conflict' ? LOOP_CONFLICT : null,
     launch: (config) => dispatch({ type: 'launch', config }),
     reset: () => dispatch({ type: 'reset', config: DEFAULT_CONFIG }),
+    phaseComplete: () => dispatch({ type: 'phaseComplete' }),
     resolveConflict: (optionId) => dispatch({ type: 'resolveConflict', optionId }),
     approveGate: () => dispatch({ type: 'approveGate' }),
     extend: () => dispatch({ type: 'extend' }),

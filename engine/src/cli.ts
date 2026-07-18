@@ -9,9 +9,10 @@ import { rollbackCommand } from './commands/rollback'
 import { parseArgs } from './cliArgs'
 import { DEFAULT_GUARDRAILS } from './build/guardrails'
 import { estimateCeilingUsd, formatUsd } from './build/costEstimate'
+import { runLoop } from './loop/runLoop'
 
 function usage(): never {
-  console.error(`sutra-engine — Phase 0/1 CLI (see ROADMAP.md)
+  console.error(`sutra-engine — Phase 0/1/2 CLI (see ROADMAP.md)
 
 Usage:
   npm run engine -- apply-test-edit <workspace-path>
@@ -29,6 +30,16 @@ Usage:
       variable (ANTHROPIC_API_KEY or OPENAI_API_KEY) — never pass it as a
       flag, it would leak into your shell history. Ctrl+C aborts cleanly:
       nothing is committed and no partial edit is left on disk.
+
+  npm run engine -- loop <workspace-path> <intent> --provider <id> --model <model-id> \\
+      --verify-cmd "<command>" --allow-run true [--max-iterations N] [--reflect-model <id>] [--verify-timeout-ms N]
+      Phase 2: the full real loop — Build, commit, VERIFY BY ACTUALLY RUNNING
+      your command, Reflect on the failure, iterate, until verification
+      passes or the budget is spent.
+      --verify-cmd is YOUR command (like an npm script you'd run yourself) —
+      the model can never author or alter it. --allow-run is the explicit
+      consent to execute commands on this machine: verification runs code the
+      agent just modified, so only use it on repos you trust.
 `)
   process.exit(1)
 }
@@ -62,6 +73,68 @@ async function runBuild(positional: string[], flags: Record<string, string>): Pr
   }
 }
 
+async function runLoopCommand(positional: string[], flags: Record<string, string>): Promise<void> {
+  const [workspacePath, intent] = positional
+  if (!workspacePath || !intent || !flags.provider || !flags.model || !flags['verify-cmd']) usage()
+
+  // Consent must be the explicit flag — not inferred, not defaulted.
+  if (!('allow-run' in flags)) {
+    console.error('Refusing to run: the loop executes your verify command (and code the agent just modified) on this machine.')
+    console.error('Pass --allow-run true to consent. Only do this on repos you trust.')
+    process.exit(1)
+  }
+
+  const maxIterations = flags['max-iterations'] ? Number(flags['max-iterations']) : 3
+  if (!Number.isInteger(maxIterations) || maxIterations < 1 || maxIterations > 10) {
+    console.error('--max-iterations must be an integer between 1 and 10.')
+    process.exit(1)
+  }
+
+  const perIterationCeiling = estimateCeilingUsd(DEFAULT_GUARDRAILS.maxTokens)
+  console.log(`Provider: ${flags.provider} · build model: ${flags.model} · reflect model: ${flags['reflect-model'] ?? flags.model}`)
+  console.log(`Verify command (yours, never the model's): ${flags['verify-cmd']}`)
+  console.log(`Budget: up to ${maxIterations} iteration(s); per iteration up to ${DEFAULT_GUARDRAILS.maxToolTurns} tool turns / ${DEFAULT_GUARDRAILS.maxTokens} tokens (worst case ${formatUsd(perIterationCeiling)} each).`)
+  console.log('Press Ctrl+C at any time to abort — the current iteration rolls back; completed iterations are kept.\n')
+
+  const controller = new AbortController()
+  process.on('SIGINT', () => {
+    console.error('\nInterrupted — aborting…')
+    controller.abort()
+  })
+
+  const outcome = await runLoop({
+    workspacePath,
+    intent,
+    providerId: flags.provider,
+    model: flags.model,
+    reflectModel: flags['reflect-model'],
+    verifyCommand: flags['verify-cmd'],
+    consentToRun: true,
+    maxIterations,
+    verifyTimeoutMs: flags['verify-timeout-ms'] ? Number(flags['verify-timeout-ms']) : undefined,
+    signal: controller.signal,
+  })
+
+  console.log('--- flight recorder ---')
+  for (const e of outcome.events) console.log(`  ${String(Math.round(e.t / 1000)).padStart(3)}s  ${e.kind.padEnd(9)} ${e.label}`)
+  for (const m of outcome.memos) console.log(`\nMemo #${m.id} (after iteration ${m.iteration}):\n  finding: ${m.finding}\n  directive: ${m.directive}`)
+
+  if (outcome.status === 'converged') {
+    console.log(`\nConverged in ${outcome.iterations} iteration(s) · ${formatUsd(outcome.totalCostUsd)} actual · branch "${outcome.branchName}".`)
+    console.log('\n--- diff since branch point — review before merging ---')
+    console.log(outcome.diff)
+  } else if (outcome.status === 'exhausted') {
+    console.log(`\nBudget spent: ${outcome.iterations} iteration(s) without convergence · ${formatUsd(outcome.totalCostUsd)} actual.`)
+    console.log(`Last verify: exit ${outcome.finalVerify.exitCode}${outcome.finalVerify.timedOut ? ' (timed out)' : ''}.`)
+    console.log(`The attempts are preserved on branch "${outcome.branchName}" for inspection.`)
+    process.exitCode = 1
+  } else {
+    console.log(`\n${outcome.status === 'aborted' ? 'Aborted.' : 'Stopped — guardrail tripped.'} ${outcome.message}`)
+    console.log(`${outcome.iterationsCompleted} completed iteration(s) kept on branch "${outcome.branchName}" · ${formatUsd(outcome.totalCostUsd)} actual.`)
+    process.exitCode = 1
+  }
+}
+
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2)
 
@@ -85,6 +158,11 @@ async function main(): Promise<void> {
     case 'build': {
       const { positional, flags } = parseArgs(rest)
       await runBuild(positional, flags)
+      return
+    }
+    case 'loop': {
+      const { positional, flags } = parseArgs(rest)
+      await runLoopCommand(positional, flags)
       return
     }
     default:
