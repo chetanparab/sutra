@@ -415,7 +415,20 @@ export default function App() {
       />
       <ContextDrawer open={contextOpen} onClose={() => setContextOpen(false)} />
       <Conductor open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
-      {showOnboarding && <Onboarding onClose={() => setShowOnboarding(false)} />}
+      {showOnboarding && (
+        <Onboarding
+          onClose={() => setShowOnboarding(false)}
+          onStartBuilding={() => {
+            // Land the user straight on the real-repo launch panel — not the
+            // scripted demo intent view. This is the desktop's front door.
+            setShowOnboarding(false)
+            setEngineMode('real')
+            setLoopEntered(true)
+            setLoopSubtab('design')
+            setStage('loop')
+          }}
+        />
+      )}
     </div>
   )
 }
