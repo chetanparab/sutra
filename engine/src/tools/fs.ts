@@ -3,7 +3,7 @@
  * edit_file. Every call is routed through resolveInWorkspace — no tool here ever
  * touches a path outside the workspace root. See ROADMAP.md, Phase 0.
  */
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { closeSync, constants as fsConstants, openSync, readdirSync, readFileSync, statSync, writeSync } from 'node:fs'
 import { join } from 'node:path'
 import type { StructuredEdit } from '../../../src/contracts/agent'
 import { resolveInWorkspace } from './workspace'
@@ -32,10 +32,39 @@ export interface FsTools {
   editFile(relPath: string, edit: StructuredEdit): void
 }
 
+/**
+ * Opens `abs` with O_NOFOLLOW and runs `fn` against the resulting fd, always
+ * closing it. resolveInWorkspace already checks the target doesn't escape the
+ * workspace via a symlink — but that's a check against a path *string*, and
+ * time can pass between that check and this open (in principle, another
+ * process could swap the file for a symlink in between: a classic
+ * TOCTOU/symlink-swap race). O_NOFOLLOW closes that gap at the point of
+ * actual I/O, which a path check alone cannot: if the final component is a
+ * symlink by the time we actually open it, this throws instead of following it.
+ *
+ * GitHub's automatic code scanning flags js/insecure-temporary-file on the
+ * open() below. Investigated and dismissed as a false positive in the
+ * Security tab, with the reasoning recorded there: its taint source is only
+ * ever this module's own tests (mkdtempSync(tmpdir()) fixtures) — the
+ * *secure*, randomly-named, exclusively-created pattern that query exists to
+ * steer people toward, not away from — never real production usage. The
+ * actual TOCTOU/symlink risk that query cares about is exactly what
+ * O_NOFOLLOW closes here.
+ */
+function withNoFollowFd<T>(abs: string, flags: number, fn: (fd: number) => T): T {
+  const fd = openSync(abs, flags)
+  try {
+    return fn(fd)
+  } finally {
+    closeSync(fd)
+  }
+}
+
 export function createFsTools(workspaceRoot: string): FsTools {
   return {
     readFile(relPath) {
-      return readFileSync(resolveInWorkspace(workspaceRoot, relPath), 'utf8')
+      const abs = resolveInWorkspace(workspaceRoot, relPath)
+      return withNoFollowFd(abs, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW, (fd) => readFileSync(fd, 'utf8'))
     },
 
     listDir(relPath = '.') {
@@ -48,7 +77,7 @@ export function createFsTools(workspaceRoot: string): FsTools {
 
     editFile(relPath, { oldString, newString }) {
       const abs = resolveInWorkspace(workspaceRoot, relPath)
-      const content = readFileSync(abs, 'utf8')
+      const content = withNoFollowFd(abs, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW, (fd) => readFileSync(fd, 'utf8'))
       const matchCount = content.split(oldString).length - 1
 
       if (matchCount === 0) {
@@ -63,7 +92,8 @@ export function createFsTools(workspaceRoot: string): FsTools {
         )
       }
 
-      writeFileSync(abs, content.replace(oldString, newString), 'utf8')
+      const newContent = content.replace(oldString, newString)
+      withNoFollowFd(abs, fsConstants.O_WRONLY | fsConstants.O_TRUNC | fsConstants.O_NOFOLLOW, (fd) => writeSync(fd, newContent, 0, 'utf8'))
     },
   }
 }
