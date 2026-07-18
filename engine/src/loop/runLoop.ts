@@ -26,6 +26,7 @@ import { commitIteration, createShadowBranch, diffSinceBranchPoint, rollbackTo }
 import { reflect } from '../reflect/reflect'
 import { createFsTools } from '../tools/fs'
 import { outputTailForMemo, runVerifyCommand, type VerifyRunResult } from '../verify/runner'
+import { isDockerAvailable, runVerifyInContainer } from '../verify/containerRunner'
 import { resolveProvider } from '../commands/build'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -50,6 +51,18 @@ export interface RunLoopParams {
   verifyTimeoutMs?: number
   signal?: AbortSignal
   baseBranch?: string
+  /**
+   * Where Verify runs (ROADMAP.md Phase 5, issue #10). 'local' executes on the
+   * host (default). 'container' runs the command in a throwaway Docker
+   * container with only the workspace mounted and the network off — isolating
+   * a consented command on an untrusted repo. Falls back to local (with a
+   * recorded note) if Docker isn't available.
+   */
+  verifyMode?: 'local' | 'container'
+  /** Container image with the repo's toolchain (node:alpine, python:slim, …). Container mode only. */
+  verifyImage?: string
+  /** Allow the verify command network access in container mode. Off by default. */
+  verifyAllowNetwork?: boolean
   /**
    * Autonomy for this real run (ROADMAP.md Phase 4, issue #39). Real mode
    * requires at least `guided` until there's a track record: `autopilot` is
@@ -121,6 +134,30 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
     params.onEvent?.(event)
   }
 
+  // Resolve where Verify runs once, up front (issue #10): container mode needs
+  // a working Docker daemon; if it isn't there, fall back to local with a
+  // recorded note rather than failing every iteration.
+  let verifyMode = params.verifyMode ?? 'local'
+  if (verifyMode === 'container' && !isDockerAvailable()) {
+    verifyMode = 'local'
+  }
+  const runVerify = (): VerifyRunResult =>
+    verifyMode === 'container'
+      ? runVerifyInContainer({
+          workspaceRoot,
+          command: params.verifyCommand,
+          consentToRun: params.consentToRun,
+          image: params.verifyImage,
+          allowNetwork: params.verifyAllowNetwork,
+          timeoutMs: params.verifyTimeoutMs,
+        })
+      : runVerifyCommand({
+          workspaceRoot,
+          command: params.verifyCommand,
+          consentToRun: params.consentToRun,
+          timeoutMs: params.verifyTimeoutMs,
+        })
+
   const branchName = `sutra/loop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const branch = createShadowBranch(workspaceRoot, branchName, params.baseBranch)
   const base: LoopRecordBase = { branchName: branch.branchName, baseRef: branch.baseRef, events, memos, totalCostUsd: 0 }
@@ -155,13 +192,8 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
       lastGoodSha = commitIteration(branch, iteration, params.intent.slice(0, 72))
       committedIterations = iteration
 
-      record('phase', 'Verify', 'muted')
-      const verify = runVerifyCommand({
-        workspaceRoot,
-        command: params.verifyCommand,
-        consentToRun: params.consentToRun,
-        timeoutMs: params.verifyTimeoutMs,
-      })
+      record('phase', verifyMode === 'container' ? 'Verify (container)' : 'Verify', 'muted')
+      const verify = runVerify()
       record('verify', `Verify · ${verify.passed ? 'passed' : verify.timedOut ? 'timed out' : `failed (exit ${verify.exitCode})`}`, verify.passed ? 'ok' : 'warn')
 
       if (verify.passed) {

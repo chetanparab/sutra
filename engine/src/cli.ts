@@ -37,7 +37,12 @@ Usage:
 
   npm run engine -- loop <workspace-path> <intent> --provider <id> --model <model-id> \\
       --verify-cmd "<command>" --allow-run true [--max-iterations N] [--reflect-model <id>] \\
-      [--verify-timeout-ms N] [--events ndjson]
+      [--verify-timeout-ms N] [--events ndjson] \\
+      [--verify-mode local|container] [--verify-image <image>] [--verify-network true]
+      --verify-mode container runs the verify command in a throwaway Docker
+      container (only the workspace mounted, network off) instead of on the
+      host — isolation for untrusted repos. --verify-image sets the toolchain
+      image (e.g. node:alpine); --verify-network true re-enables the network.
       Phase 2: the full real loop — Build, commit, VERIFY BY ACTUALLY RUNNING
       your command, Reflect on the failure, iterate, until verification
       passes or the budget is spent.
@@ -151,6 +156,12 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
     process.exit(1)
   }
 
+  const verifyMode = (flags['verify-mode'] as 'local' | 'container' | undefined) ?? 'local'
+  if (!['local', 'container'].includes(verifyMode)) {
+    console.error('--verify-mode must be one of: local, container')
+    process.exit(1)
+  }
+
   let outcome: Awaited<ReturnType<typeof runLoop>>
   try {
     outcome = await runLoop({
@@ -164,6 +175,9 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
       maxIterations,
       autonomy,
       allowAutopilot: flags['allow-autopilot'] === 'true',
+      verifyMode,
+      verifyImage: flags['verify-image'],
+      verifyAllowNetwork: flags['verify-network'] === 'true',
       verifyTimeoutMs: flags['verify-timeout-ms'] ? Number(flags['verify-timeout-ms']) : undefined,
       signal: controller.signal,
       onEvent: ndjson ? (e) => console.log(JSON.stringify({ type: 'event', ...e })) : undefined,

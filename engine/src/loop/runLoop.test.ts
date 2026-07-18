@@ -16,6 +16,7 @@ import { test } from 'node:test'
 import { makeTask2Fixture, TASK_2 } from '../../evals/tasks/task2FixAverage'
 import { scriptedProvider, type ScriptedTurn } from '../testing/scriptedProvider'
 import { runLoop } from './runLoop'
+import { isDockerAvailable } from '../verify/containerRunner'
 
 async function withTask2Repo(fn: (root: string) => Promise<void>) {
   const root = mkdtempSync(join(tmpdir(), 'sutra-runloop-'))
@@ -270,4 +271,33 @@ test('a non-git folder is refused up front with a clear, actionable message', as
   } finally {
     rmSync(plain, { recursive: true, force: true })
   }
+})
+
+test('the loop can verify inside a container (issue #10) when Docker is available', { skip: isDockerAvailable() ? false : 'Docker not available' }, async () => {
+  await withTask2Repo(async (root) => {
+    // Same task2 convergence, but Verify runs in node:alpine, not on the host.
+    const provider = scriptedProvider([
+      { text: '', toolCalls: [{ id: 'c1', name: 'edit_file', arguments: { path: 'src/stats.mjs', oldString: '  let total = 0', newString: '  if (nums.length === 0) return 0\n  let total = 0' } }] },
+      { text: 'fixed' },
+    ])
+    const phaseLabels: string[] = []
+    const outcome = await runLoop({
+      workspacePath: root,
+      intent: TASK_2.intent,
+      provider,
+      model: 'test',
+      verifyCommand: TASK_2.verifyCommand,
+      consentToRun: true,
+      maxIterations: 1,
+      verifyMode: 'container',
+      verifyImage: 'node:alpine',
+      onEvent: (e) => { if (e.kind === 'phase') phaseLabels.push(e.label) },
+    })
+    assert.equal(outcome.status, 'converged')
+    if (outcome.status !== 'converged') return
+    assert.equal(outcome.finalVerify.passed, true)
+    assert.match(outcome.finalVerify.stdout, /all cases passed/)
+    // the flight recorder shows verify ran in a container
+    assert.ok(phaseLabels.includes('Verify (container)'))
+  })
 })
