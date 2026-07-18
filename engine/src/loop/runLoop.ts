@@ -50,6 +50,14 @@ export interface RunLoopParams {
   verifyTimeoutMs?: number
   signal?: AbortSignal
   baseBranch?: string
+  /**
+   * Fired the moment each flight-recorder event is recorded — the live stream
+   * the desktop shell forwards to the webview. The same objects land in the
+   * outcome's `events` array; this is timing, not extra information.
+   */
+  onEvent?: (event: LoopEvent) => void
+  /** Fired when a reflect memo is produced, before the next iteration builds. */
+  onMemo?: (memo: HermesMemo) => void
 }
 
 interface LoopRecordBase {
@@ -80,8 +88,11 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
   const memos: HermesMemo[] = []
   let inputTokens = 0
   let outputTokens = 0
-  const record = (kind: LoopEvent['kind'], label: string, tone: LoopEvent['tone']) =>
-    events.push({ t: Date.now() - startedAt, kind, label, tone })
+  const record = (kind: LoopEvent['kind'], label: string, tone: LoopEvent['tone']) => {
+    const event: LoopEvent = { t: Date.now() - startedAt, kind, label, tone }
+    events.push(event)
+    params.onEvent?.(event)
+  }
 
   const branchName = `sutra/loop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const branch = createShadowBranch(workspaceRoot, branchName, params.baseBranch)
@@ -156,6 +167,7 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
           routedTo: 'Build',
         }
         memos.push(priorMemo)
+        params.onMemo?.(priorMemo)
         record('memo', `Hermes memo #${priorMemo.id}`, 'accent')
       } else {
         record('exhausted', `Budget spent · ${maxIterations} iteration${maxIterations === 1 ? '' : 's'}`, 'warn')

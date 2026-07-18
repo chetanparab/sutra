@@ -36,7 +36,8 @@ Usage:
       nothing is committed and no partial edit is left on disk.
 
   npm run engine -- loop <workspace-path> <intent> --provider <id> --model <model-id> \\
-      --verify-cmd "<command>" --allow-run true [--max-iterations N] [--reflect-model <id>] [--verify-timeout-ms N]
+      --verify-cmd "<command>" --allow-run true [--max-iterations N] [--reflect-model <id>] \\
+      [--verify-timeout-ms N] [--events ndjson]
       Phase 2: the full real loop — Build, commit, VERIFY BY ACTUALLY RUNNING
       your command, Reflect on the failure, iterate, until verification
       passes or the budget is spent.
@@ -101,11 +102,21 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
     process.exit(1)
   }
 
+  // --events ndjson: the machine mode the desktop shell consumes. One JSON
+  // object per stdout line, emitted the moment it happens; the human-readable
+  // narration moves entirely to stderr so stdout stays parseable.
+  const ndjson = flags.events === 'ndjson'
+  if (flags.events && !ndjson) {
+    console.error('--events supports only: ndjson')
+    process.exit(1)
+  }
+  const say = (line: string) => (ndjson ? console.error(line) : console.log(line))
+
   const perIterationCeiling = estimateCeilingUsd(DEFAULT_GUARDRAILS.maxTokens)
-  console.log(`Provider: ${flags.provider} · build model: ${flags.model} · reflect model: ${flags['reflect-model'] ?? flags.model}`)
-  console.log(`Verify command (yours, never the model's): ${flags['verify-cmd']}`)
-  console.log(`Budget: up to ${maxIterations} iteration(s); per iteration up to ${DEFAULT_GUARDRAILS.maxToolTurns} tool turns / ${DEFAULT_GUARDRAILS.maxTokens} tokens (worst case ${formatUsd(perIterationCeiling)} each).`)
-  console.log('Press Ctrl+C at any time to abort — the current iteration rolls back; completed iterations are kept.\n')
+  say(`Provider: ${flags.provider} · build model: ${flags.model} · reflect model: ${flags['reflect-model'] ?? flags.model}`)
+  say(`Verify command (yours, never the model's): ${flags['verify-cmd']}`)
+  say(`Budget: up to ${maxIterations} iteration(s); per iteration up to ${DEFAULT_GUARDRAILS.maxToolTurns} tool turns / ${DEFAULT_GUARDRAILS.maxTokens} tokens (worst case ${formatUsd(perIterationCeiling)} each).`)
+  say('Press Ctrl+C at any time to abort — the current iteration rolls back; completed iterations are kept.\n')
 
   const controller = new AbortController()
   process.on('SIGINT', () => {
@@ -124,7 +135,17 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
     maxIterations,
     verifyTimeoutMs: flags['verify-timeout-ms'] ? Number(flags['verify-timeout-ms']) : undefined,
     signal: controller.signal,
+    onEvent: ndjson ? (e) => console.log(JSON.stringify({ type: 'event', ...e })) : undefined,
+    onMemo: ndjson ? (m) => console.log(JSON.stringify({ type: 'memo', ...m })) : undefined,
   })
+
+  if (ndjson) {
+    // The terminal line: everything the shell needs to render the run's end
+    // state, including the diff for the review surface.
+    console.log(JSON.stringify({ type: 'outcome', ...outcome }))
+    if (outcome.status !== 'converged') process.exitCode = 1
+    return
+  }
 
   console.log('--- flight recorder ---')
   for (const e of outcome.events) console.log(`  ${String(Math.round(e.t / 1000)).padStart(3)}s  ${e.kind.padEnd(9)} ${e.label}`)
