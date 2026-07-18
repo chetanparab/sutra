@@ -7,6 +7,10 @@ import { createFsTools } from '../tools/fs'
 import { scriptedProvider } from '../testing/scriptedProvider'
 import { GuardrailViolation } from './guardrails'
 import { runBuildLoop } from './toolLoop'
+import { connectMcpServers } from '../mcp/client'
+import { fileURLToPath } from 'node:url'
+
+const FAKE_MCP_SERVER = fileURLToPath(new URL('../mcp/fakeServer.mjs', import.meta.url))
 
 // runBuildLoop is async, unlike Phase 0's fs/git ops — this helper must await
 // `fn` before cleaning up, or the temp dir gets deleted while the loop is
@@ -139,5 +143,42 @@ test('malformed tool calls (unknown tool, missing args) are fed back as errors t
     assert.match(toolResults[1].content, /missing required string argument "oldString"/)
     // and the real edit landed on disk in the end
     assert.match(createFsTools(root).readFile('c.txt'), /hello world/)
+  })
+})
+
+test('the model can call an MCP tool alongside the fs tools (issue #9)', async () => {
+  await withTempWorkspace(async (root) => {
+    writeFileSync(join(root, 'note.txt'), 'start')
+    const set = await connectMcpServers([{ command: process.execPath, args: [FAKE_MCP_SERVER] }])
+    try {
+      // The scripted model: call the MCP add tool, then finish. Proves MCP
+      // tools are offered and routed.
+      const provider = scriptedProvider([
+        { text: '', toolCalls: [{ id: 'm1', name: 'mcp__add', arguments: { a: 20, b: 22 } }] },
+        { text: 'The sum is 42.' },
+      ])
+
+      const result = await runBuildLoop({
+        provider,
+        model: 'test',
+        intent: 'use the mcp tool',
+        tools: createFsTools(root),
+        extraTools: set.tools,
+        dispatchExtraTool: (call) => set.callTool(call.name, call.arguments),
+      })
+
+      // the mcp tool was offered to the model…
+      const offered = provider.callLog[0].tools?.map((t) => t.name) ?? []
+      assert.ok(offered.includes('mcp__add'))
+      assert.ok(offered.includes('read_file')) // fs tools still there too
+      // …and its result was routed back
+      assert.equal(result.toolCallLog[0].name, 'mcp__add')
+      assert.equal(result.toolCallLog[0].isError, false)
+      const toolMsg = provider.callLog[1].messages.find((m) => m.role === 'tool')
+      assert.ok(toolMsg)
+      assert.equal(toolMsg.content, '42')
+    } finally {
+      set.close()
+    }
   })
 })

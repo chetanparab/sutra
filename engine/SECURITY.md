@@ -47,6 +47,13 @@ boundary with a scripted model that *obeys* the fixture's injection
 - **Secrets already inside the workspace** are readable by design — that's the
   repo the user pointed at. The boundary is the workspace root, not
   file-content classification.
+- **BYO-agent / MCP tools (issue #9).** An MCP server plugged into Build is a
+  program the *user* chose to run — spawned as an argv array, no shell, like
+  the verify command. Its tool *descriptions* become model-visible text and
+  are data (same as repo content): the model may be told what a tool does, but
+  nothing an MCP server says relaxes the hard boundaries. Its tools can do
+  whatever that server allows — trust an MCP server the way you'd trust any
+  dependency you add.
 
 ## Keeping this honest
 

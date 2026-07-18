@@ -5,7 +5,7 @@
  * idea whether it's driving Anthropic, an OpenAI-compatible endpoint, or a
  * fake test provider.
  */
-import type { ChatMessage, LlmProvider } from '../../../src/contracts/llm'
+import type { ChatMessage, LlmProvider, ToolCall, ToolDef } from '../../../src/contracts/llm'
 import type { FsTools } from '../tools/fs'
 import { executeFsToolCall, FS_TOOL_DEFS } from '../tools/toolDefs'
 import { DEFAULT_GUARDRAILS, GuardrailViolation, type BuildGuardrails } from './guardrails'
@@ -29,6 +29,14 @@ export interface RunBuildLoopParams {
   tools: FsTools
   guardrails?: BuildGuardrails
   signal?: AbortSignal
+  /**
+   * BYO-agent (issue #9): extra tools discovered from the user's MCP
+   * server(s), offered to the model ALONGSIDE the built-in fs tools. Their
+   * names are namespaced (e.g. "mcp__…") so they can't collide. When the model
+   * calls one, `dispatchExtraTool` routes it to the MCP client.
+   */
+  extraTools?: ToolDef[]
+  dispatchExtraTool?: (call: ToolCall) => Promise<{ content: string; isError: boolean }>
 }
 
 export interface ToolCallLogEntry {
@@ -69,12 +77,16 @@ export async function runBuildLoop(params: RunBuildLoopParams): Promise<RunBuild
   let totalOutputTokens = 0
   const toolCallLog: ToolCallLogEntry[] = []
 
+  const extraTools = params.extraTools ?? []
+  const extraToolNames = new Set(extraTools.map((t) => t.name))
+  const offeredTools = extraTools.length > 0 ? [...FS_TOOL_DEFS, ...extraTools] : FS_TOOL_DEFS
+
   for (let turn = 1; turn <= guardrails.maxToolTurns; turn++) {
     throwIfAborted(params.signal)
 
     const completion = await params.provider.complete({
       messages,
-      tools: FS_TOOL_DEFS,
+      tools: offeredTools,
       opts: { model: params.model, signal: params.signal },
     })
 
@@ -95,7 +107,11 @@ export async function runBuildLoop(params: RunBuildLoopParams): Promise<RunBuild
 
     for (const call of completion.toolCalls) {
       throwIfAborted(params.signal)
-      const result = executeFsToolCall(params.tools, call)
+      // Route MCP tools to their client; everything else is a built-in fs tool.
+      const result =
+        extraToolNames.has(call.name) && params.dispatchExtraTool
+          ? { toolCallId: call.id, ...(await params.dispatchExtraTool(call)) }
+          : executeFsToolCall(params.tools, call)
       toolCallLog.push({
         turn,
         name: call.name,

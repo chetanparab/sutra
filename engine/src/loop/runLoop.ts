@@ -27,6 +27,7 @@ import { reflect } from '../reflect/reflect'
 import { createFsTools } from '../tools/fs'
 import { outputTailForMemo, runVerifyCommand, type VerifyRunResult } from '../verify/runner'
 import { isDockerAvailable, runVerifyInContainer } from '../verify/containerRunner'
+import { connectMcpServers, type McpServerConfig, type McpToolset } from '../mcp/client'
 import { resolveProvider } from '../commands/build'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -63,6 +64,13 @@ export interface RunLoopParams {
   verifyImage?: string
   /** Allow the verify command network access in container mode. Off by default. */
   verifyAllowNetwork?: boolean
+  /**
+   * BYO-agent (issue #9): MCP servers whose tools are offered to the Build
+   * phase's model alongside the built-in fs tools. Each is a program the user
+   * chose to run (argv array, no shell). Connected once at the start of the
+   * loop and reused across iterations.
+   */
+  mcpServers?: McpServerConfig[]
   /**
    * Autonomy for this real run (ROADMAP.md Phase 4, issue #39). Real mode
    * requires at least `guided` until there's a track record: `autopilot` is
@@ -158,6 +166,15 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
           timeoutMs: params.verifyTimeoutMs,
         })
 
+  // BYO-agent (issue #9): connect the user's MCP servers once and offer their
+  // tools to every Build iteration. A server that fails to start is skipped
+  // (recorded), not fatal. Closed in the finally.
+  let mcp: McpToolset | undefined
+  if (params.mcpServers && params.mcpServers.length > 0) {
+    mcp = await connectMcpServers(params.mcpServers, (m) => record('memo', m, 'warn'))
+    if (mcp.tools.length > 0) record('memo', `MCP: ${mcp.tools.length} tool(s) available to Build`, 'muted')
+  }
+
   const branchName = `sutra/loop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const branch = createShadowBranch(workspaceRoot, branchName, params.baseBranch)
   const base: LoopRecordBase = { branchName: branch.branchName, baseRef: branch.baseRef, events, memos, totalCostUsd: 0 }
@@ -185,6 +202,8 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
         tools: createFsTools(workspaceRoot),
         guardrails: params.guardrails,
         signal: params.signal,
+        extraTools: mcp?.tools,
+        dispatchExtraTool: mcp ? (call) => mcp!.callTool(call.name, call.arguments) : undefined,
       })
       inputTokens += buildResult.totalInputTokens
       outputTokens += buildResult.totalOutputTokens
@@ -265,5 +284,7 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
       return { ...base, status: 'aborted', iterationsCompleted: committedIterations, message: 'Aborted — the current iteration was rolled back; completed iterations were kept.', totalCostUsd }
     }
     throw err
+  } finally {
+    mcp?.close()
   }
 }
