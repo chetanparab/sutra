@@ -60,6 +60,12 @@ jobs:
           - platform: windows
             os: windows-latest
     runs-on: ${{ matrix.os }}
+    # Windows is non-blocking for the beta: the Node SEA sidecar binary is not
+    # yet functional on Windows (the injected .exe exits before running — a
+    # known Authenticode/postject issue that needs a Windows machine to fix
+    # properly; tracked in the Phase 5 backlog). macOS + Linux installers still
+    # publish; the Windows leg attaches its installer if/when it goes green.
+    continue-on-error: ${{ matrix.platform == 'windows' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

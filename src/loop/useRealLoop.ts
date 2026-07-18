@@ -90,7 +90,9 @@ export function useRealLoop(): RealLoopController {
         next.iteration = prev.iteration + 1
         next.phase = 'sense'
       } else if (event.kind === 'phase') {
-        next.phase = PHASE_BY_LABEL[event.label] ?? prev.phase
+        // Labels may carry a qualifier, e.g. "Verify (container)" — key off the
+        // first word so the orbit still lands on the right phase.
+        next.phase = PHASE_BY_LABEL[event.label.split(' ')[0]] ?? prev.phase
       } else if (event.kind === 'verify') {
         const passed = event.tone === 'ok'
         next.verify = { status: passed ? 'pass' : 'fail', detail: event.label.replace('Verify · ', '') }

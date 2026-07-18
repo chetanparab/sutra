@@ -31,10 +31,15 @@ boundary with a scripted model that *obeys* the fixture's injection
 - **Consent is the trust boundary for execution.** Once the user consents to
   run the verify command on a repo, that command — and any code the loop just
   wrote — executes on their machine. Sutra constrains *file* access to the
-  workspace, but it does not sandbox the verify command's own behavior. The
-  consent surface says this in words; the guidance is to only grant it on
-  repositories you trust. A container/cloud Verify adapter (issue #10) would
-  let this run somewhere disposable.
+  workspace, but the default (`local`) verify mode does not sandbox the verify
+  command's own behavior. The consent surface says this in words; the guidance
+  is to only grant it on repositories you trust.
+  **Mitigation available (issue #10):** `verifyMode: 'container'` runs the
+  verify command in a throwaway Docker container with only the workspace
+  mounted and the network off — confining a consented command on an untrusted
+  repo. It reduces blast radius (host filesystem and network are unreachable);
+  it does not remove the fact that you are executing code, so consent is still
+  required. Use it for repos you don't fully trust.
 - **The model can still write bad code** into the workspace. That is what
   Review is for: a human reads the real diff before the human-gated merge.
   Injection can make the model *try* to write a backdoor; it cannot make that
