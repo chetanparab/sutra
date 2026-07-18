@@ -97,9 +97,14 @@ test('a subtly-wrong first attempt converges in 2 iterations with real verify ru
     assert.equal(outcome.memos.length, 1)
     assert.match(outcome.memos[0].finding, /average\(\[\]\) returned 1/)
     assert.equal(outcome.memos[0].routedTo, 'Build')
-    // the flight recorder tells the full story in order
+    // the flight recorder tells the full story in order, phase markers included
     const kinds = outcome.events.map((e) => e.kind)
-    assert.deepEqual(kinds, ['iteration', 'verify', 'memo', 'iteration', 'verify', 'converge'])
+    assert.deepEqual(kinds, [
+      'iteration', 'phase', 'phase', 'verify', 'phase', 'memo',
+      'iteration', 'phase', 'phase', 'verify', 'converge',
+    ])
+    const phases = outcome.events.filter((e) => e.kind === 'phase').map((e) => e.label)
+    assert.deepEqual(phases, ['Build', 'Verify', 'Reflect', 'Build', 'Verify'])
     // and the live stream (the desktop shell's feed) saw the same story, live
     assert.deepEqual(streamedKinds, kinds)
     assert.deepEqual(streamedMemos, [1])
@@ -140,6 +145,7 @@ test('exhausts the budget honestly when every fix is wrong, keeping failed commi
     assert.equal(outcome.iterations, 2)
     assert.equal(outcome.finalVerify.passed, false)
     assert.equal(outcome.events.at(-1)?.kind, 'exhausted')
+    assert.equal(outcome.events.filter((e) => e.kind === 'phase' && e.label === 'Reflect').length, 1)
     // failed iterations' commits are kept — failures carry information
     const log = execFileSync('git', ['log', '--oneline'], { cwd: root, encoding: 'utf8' })
     assert.match(log, /\[iteration 2\]/)

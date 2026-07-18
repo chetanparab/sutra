@@ -123,6 +123,19 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
     console.error('\nInterrupted — aborting…')
     controller.abort()
   })
+  if (ndjson) {
+    // The control channel for hosts that can't deliver signals portably (the
+    // Tauri shell on every platform): a line saying "abort" on stdin triggers
+    // the same clean abort path as Ctrl+C.
+    process.stdin.setEncoding('utf8')
+    process.stdin.on('data', (chunk: string) => {
+      if (chunk.split('\n').some((l) => l.trim() === 'abort')) {
+        console.error('Abort requested over stdin…')
+        controller.abort()
+      }
+    })
+    process.stdin.unref()
+  }
 
   const outcome = await runLoop({
     workspacePath,

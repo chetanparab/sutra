@@ -105,6 +105,10 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
     let iteration = 1
     for (; iteration <= maxIterations; iteration++) {
       record('iteration', `Iteration ${iteration}`, 'accent')
+      // Phase markers exist for the live stream: the desktop UI shows an
+      // indeterminate "running" state for the phase named by the latest
+      // marker. The verify/memo/converge events that follow carry results.
+      record('phase', 'Build', 'muted')
 
       const intentForBuild = priorMemo
         ? `${params.intent}\n\nPrevious iteration's courier memo — apply this directive:\nFinding: ${priorMemo.finding}\nDirective: ${priorMemo.directive}`
@@ -124,6 +128,7 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
       lastGoodSha = commitIteration(branch, iteration, params.intent.slice(0, 72))
       committedIterations = iteration
 
+      record('phase', 'Verify', 'muted')
       const verify = runVerifyCommand({
         workspaceRoot,
         command: params.verifyCommand,
@@ -146,6 +151,7 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
       }
 
       if (iteration < maxIterations) {
+        record('phase', 'Reflect', 'muted')
         const memoResult = await reflect({
           provider,
           model: params.reflectModel ?? params.model,
