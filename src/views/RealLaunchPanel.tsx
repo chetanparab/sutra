@@ -14,8 +14,20 @@ const FIELD =
   'w-full rounded-[var(--radius)] border border-primary/12 bg-primary/[0.03] px-3 py-2 text-[12.5px] text-primary outline-none transition-colors placeholder:text-faint focus:border-accent/50'
 
 const PROVIDERS = [
-  { id: 'anthropic', label: 'Anthropic', keyName: 'ANTHROPIC_API_KEY' },
-  { id: 'openai-compat', label: 'OpenAI-compatible', keyName: 'OPENAI_API_KEY' },
+  {
+    id: 'anthropic',
+    label: 'Anthropic',
+    keyName: 'ANTHROPIC_API_KEY',
+    defaultModel: 'claude-sonnet-5',
+    models: ['claude-sonnet-5', 'claude-opus-4-8', 'claude-haiku-4-5-20251001'],
+  },
+  {
+    id: 'openai-compat',
+    label: 'OpenAI-compatible',
+    keyName: 'OPENAI_API_KEY',
+    defaultModel: '',
+    models: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+  },
 ]
 
 export default function RealLaunchPanel({
@@ -32,7 +44,7 @@ export default function RealLaunchPanel({
   const [workspacePath, setWorkspacePath] = useState('')
   const [intent, setIntent] = useState('')
   const [provider, setProvider] = useState('anthropic')
-  const [model, setModel] = useState('')
+  const [model, setModel] = useState('claude-sonnet-5')
   const [verifyCmd, setVerifyCmd] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [storeKey, setStoreKey] = useState(true)
@@ -57,7 +69,15 @@ export default function RealLaunchPanel({
   }
 
   const complete = workspacePath !== '' && intent.trim() !== '' && model.trim() !== '' && verifyCmd.trim() !== '' && consent
-  const keyName = PROVIDERS.find((p) => p.id === provider)?.keyName ?? 'API key'
+  const activeProvider = PROVIDERS.find((p) => p.id === provider)
+  const keyName = activeProvider?.keyName ?? 'API key'
+
+  // Switching provider swaps in that provider's default model, so the field is
+  // never left pointing at a model the new provider doesn't have.
+  const onProviderChange = (id: string) => {
+    setProvider(id)
+    setModel(PROVIDERS.find((p) => p.id === id)?.defaultModel ?? '')
+  }
 
   const pick = async () => {
     const picked = await pickWorkspaceFolder()
@@ -95,14 +115,25 @@ export default function RealLaunchPanel({
       />
 
       <div className="grid grid-cols-2 gap-2.5">
-        <select value={provider} onChange={(e) => setProvider(e.target.value)} className={FIELD}>
+        <select value={provider} onChange={(e) => onProviderChange(e.target.value)} className={FIELD}>
           {PROVIDERS.map((p) => (
             <option key={p.id} value={p.id}>
               {p.label}
             </option>
           ))}
         </select>
-        <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="Model id" className={cn(FIELD, 'font-mono text-[11.5px]')} />
+        <input
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder="Model id"
+          list="sutra-models"
+          className={cn(FIELD, 'font-mono text-[11.5px]')}
+        />
+        <datalist id="sutra-models">
+          {(activeProvider?.models ?? []).map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
       </div>
 
       <input
