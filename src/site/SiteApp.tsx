@@ -253,7 +253,7 @@ export default function SiteApp() {
   }, [theme])
 
   return (
-    <div className="relative min-h-screen text-primary">
+    <div className="relative min-h-screen overflow-x-clip text-primary">
       {/* ambient wash + cinematic hooks, shared with the app */}
       <div className="grain pointer-events-none fixed inset-0 -z-10 overflow-hidden" style={{ background: 'var(--bg)' }}>
         <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 90% 60% at 50% 0%, color-mix(in srgb, var(--bg-hi) 90%, transparent), transparent 70%)' }} />
