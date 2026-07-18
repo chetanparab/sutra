@@ -1,16 +1,20 @@
-# Roadmap — from concept demo to v1.0
+# Roadmap — from concept demo to v2.0
 
+> **Status: FROZEN (rev 2, 2026-07-18).** This is the agreed plan of record. The
+> frozen parts are the **phase boundaries, their sequencing, the hard invariants**
+> (human-gated merge, workspace-root constraint, day-one cost caps) **and the v2.0
+> version target**. Changing any of those requires a PR that edits this document and
+> says why — not a drive-by decision inside an implementation PR. Wording fixes,
+> clarifications and marking things done are normal PRs.
+>
 > **What this document is.** [`ARCHITECTURE.md`](ARCHITECTURE.md) explains the
 > *contracts* — the seams between the loop (ours) and the intelligence (yours). This
 > document is the *engineering plan*: in what order we build the real system behind
 > those contracts, what "done" means for each step, what we are deliberately **not**
-> doing yet, and the risks that need a designed answer, not a hope. It is written to
-> be sequenced into GitHub milestones and issues — every phase below is meant to be
-> shippable and independently useful, not a slice that only matters once every other
-> slice also lands.
->
-> Open to proposals. If you have a better cut at any phase boundary, a risk we
-> missed, or a different sequencing — open an issue.
+> doing yet, and the risks that need a designed answer, not a hope. It is sequenced
+> into GitHub milestones (Phase 0–4) with issues filed against them — every phase
+> below is meant to be shippable and independently useful, not a slice that only
+> matters once every other slice also lands.
 
 ## Where we actually are
 
@@ -50,24 +54,37 @@ never about rebuilding the UI.
    settings (`copilot` / `guided` / `autopilot`) control how much oversight you have
    *during* the loop. They never control whether a change reaches your actual branch
    without a click. This is a hard invariant, not a default that can be configured away
-   in v1.
+   in v2.0.
 
-## Non-goals for v1.0
+## Versioning — why the target is v2.0, not v1.0
+
+The concept-demo line is **already released as v1.x** (`v1.3.0` is tagged, shipped and
+live). A "v1.0" real-mode release would sort *below* what's already out — confusing
+for the Releases page, npm-style semver ordering, and everyone's mental model. So:
+**v1.x is the concept-demo line (web); v2.0.0 is the first real-mode desktop
+release.** The major bump is honest — real mode changes what the product *is*.
+Pre-releases along the way: Phase 3's exit is `v2.0.0-beta.1`; Phase 4's exit is
+`v2.0.0`. `package.json` and the release tags stay in lockstep, as they do today.
+
+## Non-goals for v2.0 (the first real release)
 
 Stated up front so scope doesn't creep mid-phase.
 
-- **No multi-agent orchestration.** v1 real mode is one orchestrated pipeline making
+- **No multi-agent orchestration.** v2.0 real mode is one orchestrated pipeline making
   LLM calls per phase (with per-role model profiles, already in the `ModelProfile`
   contract) — not a society of independent agents. MCP external agents are real and
-  valuable, but they are a **post-v1** integration surface (see Phase 5+).
-- **No Spec-mode-real.** Spec mode stays a scripted, polished demo through v1.0.
+  valuable, but they are a **post-v2.0** integration surface (see Phase 5+).
+- **No Spec-mode-real.** Spec mode stays a scripted, polished demo through v2.0.
 - **No teams / cloud orchestrator.** Single-user, single-machine only.
-- **No web/browser real mode.** Desktop only for v1 — real file access and key
+- **No web/browser real mode.** Desktop only for v2.0 — real file access and key
   security are dramatically simpler with a real filesystem and an OS keychain than
   with OPFS and browser-held secrets. The web app remains the demo + marketing site.
-- **No full compute sandboxing (containers/Firecracker/cloud) for Verify.** v1 runs the
-  user's own test/lint command on their own machine, with explicit consent. Stronger
-  isolation is a documented v2 direction, not a v1 blocker.
+- **No full compute sandboxing (containers/Firecracker/cloud) for Verify.** v2.0 runs
+  the user's own test/lint command on their own machine, with explicit consent.
+  Stronger isolation is a documented later direction, not a v2.0 blocker.
+- **No telemetry or analytics.** Privacy is a design constraint (same ethos as the
+  rest of the Analogy Architect toolkit): no usage data collection in v2.0, full stop.
+  If opt-in diagnostics ever exist, they'll be a documented, default-off decision.
 - **No auto-push, no auto-PR, ever, in any autonomy mode.** See guiding principle 5.
 
 ## What has to change in the design (fixing the contradictions)
@@ -92,11 +109,12 @@ format for an LLM to *author*: they require exact line numbers and context, and 
 reliably produce diffs that don't apply cleanly. The tool that works — used by Claude
 Code, Aider, Cursor and others — is **structured, exact-match edits**: the model calls
 a tool like `edit_file(path, old_string, new_string)`, the host does an exact string
-match, and refuses (asks the model to retry) if the match isn't unique. This needs a
-contract change:
+match, and refuses (asks the model to retry) if the match isn't unique. The contract
+change is **already landed** in [`src/contracts/agent.ts`](src/contracts/agent.ts)
+(the `StructuredEdit` type):
 
 ```ts
-// src/contracts/agent.ts — proposed addition to PhaseResult
+// src/contracts/agent.ts — PhaseResult.changes, as shipped
 changes?: {
   path: string
   edits?: { oldString: string; newString: string }[] // primary: exact-match structured edits
@@ -138,7 +156,7 @@ flowchart LR
   P0["Phase 0\nEngine foundation\n(fs tools · git · CLI)"] --> P1["Phase 1\nReal Build\n(BYO-LLM · tool loop)"]
   P1 --> P2["Phase 2\nReal Verify + Reflect\n(iteration · rollback)"]
   P2 --> P3["Phase 3\nReal Merge + Tauri\n(desktop shell)"]
-  P3 --> P4["Phase 4\nHarden + package\n→ v1.0"]
+  P3 --> P4["Phase 4\nHarden + package\n→ v2.0"]
   P4 --> P5["Phase 5+\nMCP agents · Spec-real\nteams · web-real"]
 ```
 
@@ -148,8 +166,8 @@ flowchart LR
 | **1** | An LLM edits a real file correctly | The core technical risk of the whole product |
 | **2** | The loop iterates to a real passing state | Convergence is real, not scripted |
 | **3** | A user can do this from a desktop app and ship it | The actual product experience |
-| **4** | It's safe and installable | v1.0 |
-| **5+** | Everything ARCHITECTURE.md promises beyond v1 | Multi-agent, teams, web |
+| **4** | It's safe and installable | v2.0 |
+| **5+** | Everything ARCHITECTURE.md promises beyond v2.0 | Multi-agent, teams, web |
 
 ---
 
@@ -159,9 +177,13 @@ flowchart LR
 solid, deterministic and safe, before any AI is involved.
 
 **Deliverables**
-- `src/engine/` — a Node-only module tree with zero React/DOM imports (may graduate to
-  its own workspace package later, once Tauri sidecar packaging makes that necessary —
-  deferred, not decided now).
+- `engine/` — a **top-level** directory (not under `src/`) with its own
+  `tsconfig.json` targeting Node. This is a firm decision, not a preference: the web
+  app's Vite build must never be able to pull `node:fs`/`node:child_process` into its
+  module graph, and the cleanest guarantee is that engine code lives outside the
+  web app's source root entirely. Layout: `engine/src/` for code, `engine/evals/` for
+  fixtures and benchmark tasks. Same repo, same package for now; a separate workspace
+  package only if Phase 3's sidecar packaging demands it.
 - Workspace-root-constrained fs tools: `read_file`, `list_dir`, `edit_file`. Every path
   is resolved and checked to stay inside the chosen workspace root before any access —
   this is the primary defense against a workspace-escape bug, and it needs a test
@@ -174,10 +196,13 @@ solid, deterministic and safe, before any AI is involved.
   line" task the CLI can run deterministically, checked into the repo as the first
   regression test for everything that follows.
 
-**Acceptance ("done when")**: `npm run engine -- apply-test-edit ./fixtures/toy-repo`
-deterministically edits a file, commits it to a shadow branch, and can be rolled back —
-with an automated test proving it, and a second test proving a path-traversal attempt
-is rejected.
+**Acceptance ("done when")**:
+`npm run engine -- apply-test-edit ./engine/evals/fixtures/toy-repo` deterministically
+edits a file, commits it to a shadow branch, and can be rolled back — with an
+automated test proving it, and a second test proving a path-traversal attempt is
+rejected. (Tracked: [#15](https://github.com/chetanparab/sutra/issues/15) fs tools ·
+[#16](https://github.com/chetanparab/sutra/issues/16) shadow-branch ops ·
+[#17](https://github.com/chetanparab/sutra/issues/17) CLI + first fixture.)
 
 **Non-goals**: no LLM calls, no UI changes, no Tauri.
 
@@ -194,8 +219,9 @@ first call, not added later.
   ecosystem), OpenAI-compatible second — against the existing `src/contracts/llm.ts`,
   with real tool-use support (this is required, not optional: the tool loop depends on
   it).
-- The **contract change** from the section above: `PhaseResult.changes[].edits`
-  (structured, exact-match) as the primary format.
+- The tool-use loop authors edits via the already-landed `StructuredEdit` contract
+  (`PhaseResult.changes[].edits`) — Phase 1 makes it the enforced primary format,
+  with the retry-on-ambiguous-match behavior wired in.
 - A small, generic tool-use loop: LLM call → tool calls (`read_file`/`list_dir`/
   `edit_file` from Phase 0) → results fed back → repeat until the model reports done or
   a turn/token ceiling is hit. Generic on purpose — provider-specific tool-calling
@@ -223,7 +249,7 @@ which drives a real second Build, which converges — or exhausts the budget hon
 
 **Deliverables**
 - A Verify runner: executes the repo's configured test/lint command via `child_process`
-  against the shadow branch's committed state. v1 runs on the host machine with an
+  against the shadow branch's committed state. v2.0 runs on the host machine with an
   explicit, visible consent step ("Sutra will run commands in this repo and any code
   the agent modifies — only use on repos you trust"); a Docker-if-available path is a
   nice-to-have, not a blocker.
@@ -256,6 +282,12 @@ watch a real loop run, approve it, and get a real branch or PR.
   process the Rust host manages) with the existing, already-built React UI as the
   webview. This is *wiring*, not a UI rewrite — `LoopRunView`, the orbit, Review and the
   governance gate render whatever `LoopState` they're handed, real or scripted.
+- **The phase's named technical risk — sidecar packaging.** The engine is Node code,
+  and a Tauri app doesn't ship a Node runtime for free. The options are known
+  (Node single-executable applications, `bun build --compile`, `pkg`-style bundling,
+  or — worst case — porting the engine's thin I/O layer to Rust commands), and the
+  choice is made by a short spike at the *start* of this phase, not assumed. Calling
+  it out here so it's a planned decision, not a surprise that stalls the phase.
 - OS keychain integration for API keys (Keychain / Credential Manager / libsecret),
   replacing the Phase 1 placeholder.
 - Real Merge: fast-forward/rebase the shadow branch into the user's branch, or
@@ -274,7 +306,7 @@ real mode yet.
 
 ---
 
-### Phase 4 — Harden + package → v1.0
+### Phase 4 — Harden + package → v2.0
 
 **Goal.** Ship something a stranger can download and trust.
 
@@ -298,17 +330,17 @@ real mode yet.
   injection via test/lint config, and the prompt-injection fixture above, checked off
   explicitly.
 
-**Acceptance**: `v1.0.0` tag → signed installers on the Releases page for all three
+**Acceptance**: `v2.0.0` tag → signed installers on the Releases page for all three
 desktop platforms, `engine/evals/` green in CI, the security checklist signed off.
 
 ---
 
-### Phase 5+ — Beyond v1 (deliberately deferred, not forgotten)
+### Phase 5+ — Beyond v2.0 (deliberately deferred, not forgotten)
 
 - **MCP multi-agent** (issue [#9](https://github.com/chetanparab/sutra/issues/9)) —
   external agents over MCP serving individual loop phases, exactly as
   `ARCHITECTURE.md`'s `AgentRegistry` already anticipates. This needs Phase 0–4's
-  single-pipeline engine to exist first, so it's correctly sequenced *after* v1, not
+  single-pipeline engine to exist first, so it's correctly sequenced *after* v2.0, not
   before.
 - **Spec-mode-real** — real requirements/design/tasks generation, replacing the
   scripted Spec demo.
@@ -335,30 +367,30 @@ desktop platforms, `engine/evals/` green in CI, the security checklist signed of
 | API key leakage | 1 | Keychain storage (Phase 3), never logged, redacted from the flight recorder |
 | Diff/edit fails to apply cleanly | 1 | Structured exact-match edits (not diffs) as the primary format; on mismatch, feed the exact failure back to the model rather than failing silently |
 | Autopilot ships an unreviewed real change | 3–4 | Merge is always human-gated regardless of autonomy; autopilot restricted by default in real mode |
+| Tauri sidecar can't cleanly bundle the Node engine | 3 | Named as Phase 3's primary technical risk; decided by a spike at phase start (Node SEA / bun compile / pkg / Rust I/O port), not assumed |
 
-## Success metric for v1.0
+## Success metric for v2.0
 
 A small, honest benchmark beats a vague promise: `engine/evals/` holds a hand-picked
 set of realistic small tasks (start with ~10) across a few toy repos, each with a
 scripted intent and a way to check the outcome (tests pass, a specific behavior
-changes). v1.0 means that suite is green in CI on every change to the engine — the
+changes). v2.0 means that suite is green in CI on every change to the engine — the
 same discipline SWE-bench-style evals apply to coding agents generally, scoped down to
 something one maintainer can actually keep green.
 
-## Mapping to today's issues
+## Mapping to the issue tracker
 
-- [#8 BYO-LLM adapter](https://github.com/chetanparab/sutra/issues/8) — **Phase 1**,
-  scope confirmed: must include tool-use, not just text completion.
-- [#9 MCP AgentAdapter](https://github.com/chetanparab/sutra/issues/9) — **re-sequenced
-  to Phase 5+**. Valuable, but there is no single-pipeline engine yet for it to plug
-  into; building it before Phase 0–4 exist would be work without a home.
-- [#10 Compute adapter beyond WASM](https://github.com/chetanparab/sutra/issues/10) —
-  **re-sequenced to Phase 5+** (container/cloud sandboxing). Phase 2's host-execution
-  Verify runner is a separate, simpler, earlier need — tracked as new issues below.
+Every phase 0–4 is a GitHub milestone; issues are filed against them.
 
-New issues filed alongside this roadmap, scoped to Phase 0–2 so there's an immediate
-on-ramp: workspace-root-constrained fs tools, git shadow-branch operations, and the
-host-process Verify runner.
+| Issue | Phase | Note |
+| --- | --- | --- |
+| [#15 Workspace-root-constrained fs tools](https://github.com/chetanparab/sutra/issues/15) | 0 | The primary safety boundary; good first issue |
+| [#16 Git shadow-branch operations](https://github.com/chetanparab/sutra/issues/16) | 0 | create / commit-iteration / rollback / finalize |
+| [#17 `sutra-engine` CLI + fake provider + first eval fixture](https://github.com/chetanparab/sutra/issues/17) | 0 | Zero-API-cost plumbing proof; good first issue |
+| [#8 BYO-LLM `LlmProvider` adapter](https://github.com/chetanparab/sutra/issues/8) | 1 | Scope confirmed: must include tool-use, not just text completion |
+| [#18 Host-process Verify runner](https://github.com/chetanparab/sutra/issues/18) | 2 | Real test/lint execution behind explicit consent |
+| [#9 MCP `AgentAdapter`](https://github.com/chetanparab/sutra/issues/9) | 5+ | Re-sequenced: no single-pipeline engine exists yet for it to plug into |
+| [#10 Compute adapter beyond WASM](https://github.com/chetanparab/sutra/issues/10) | 5+ | Container/cloud sandboxing — a later direction, distinct from #18 |
 
 ---
 
