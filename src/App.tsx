@@ -39,12 +39,16 @@ export default function App() {
   // actual engine's event stream instead of the scripted reducer. Whichever
   // is live feeds every loop-driven surface below.
   const real = useRealLoop()
-  const [engineMode, setEngineMode] = useState<'demo' | 'real'>('demo')
+  // The desktop shell's home is the real-repo launcher, not the scripted-demo
+  // intent view: a desktop user should land on the folder picker + verify +
+  // consent panel directly. The web demo keeps its Intent-first flow.
+  const desktop = isDesktop()
+  const [engineMode, setEngineMode] = useState<'demo' | 'real'>(desktop ? 'real' : 'demo')
   const activeLoop = engineMode === 'real' ? real.loop : loop
   const [mode, setMode] = useState<Mode>('specless')
-  const [stage, setStage] = useState<StageId>('intent')
+  const [stage, setStage] = useState<StageId>(desktop ? 'loop' : 'intent')
   const [specPhase, setSpecPhase] = useState<SpecPhase>('none')
-  const [loopEntered, setLoopEntered] = useState(false)
+  const [loopEntered, setLoopEntered] = useState(desktop)
   const [loopSubtab, setLoopSubtab] = useState<LoopSubtab>('design')
   const [loopConfig, setLoopConfig] = useState<LoopConfig>(DEFAULT_LOOP_CONFIG)
   const [reviewApproved, setReviewApproved] = useState(false)
