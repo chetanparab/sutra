@@ -147,13 +147,11 @@ Analogy Architect ethos.
 
 ## The roadmap: simulation → real
 
-| Phase | What becomes real | Keys / storage |
-| --- | --- | --- |
-| **0 — today** | Scripted crew + **real WASM verify** | none |
-| **1 — BYO-LLM** | Sense & Reflect run on *your* model (real memos), scenario still supplies the task | desktop keychain |
-| **2 — BYO-agent (MCP)** | Real agents serve loop phases; Hermes routes real work | agent registry |
-| **3 — real workspace** | Tauri + local git + real test runners; web path via GitHub OAuth + CI | OPFS / local FS |
-| **4 — teams** | Orchestrator service, governance-as-code, immutable audit | self-hosted, org vault |
+The detailed, sequenced engineering plan — phase-by-phase deliverables, acceptance
+criteria, the risk register, and why the sequencing is what it is — lives in
+[`ROADMAP.md`](ROADMAP.md). Short version: a headless engine (real files, real git,
+real LLM calls, real test runs) is proven from a CLI *before* it's wired into a desktop
+app, and every phase ships something independently useful rather than an inert slice.
 
 ## What does *not* change
 

@@ -53,10 +53,27 @@ export interface PhaseRequest {
   signal?: AbortSignal
 }
 
+/**
+ * A single structured, exact-match edit within a file — the format a model is asked
+ * to author. Exact-match-and-replace is far more reliable for an LLM to produce
+ * correctly than a unified diff (no line numbers or context hunks to get right); the
+ * host applies it by locating `oldString` verbatim and refusing (surfacing the exact
+ * mismatch back to the model) if the match isn't unique. See ROADMAP.md, Phase 1.
+ */
+export interface StructuredEdit {
+  oldString: string
+  newString: string
+}
+
 /** What an agent returns from a phase. */
 export interface PhaseResult {
-  /** Files the agent proposes to change (unified diffs or full contents). */
-  changes?: { path: string; diff?: string; contents?: string }[]
+  /**
+   * Files the agent proposes to change. `edits` (structured, exact-match) is the
+   * primary format a model authors; `contents` is the fallback for new files or full
+   * rewrites; `diff` is display-only — computed for the Review surface after the
+   * fact, never something a model is asked to produce directly.
+   */
+  changes?: { path: string; edits?: StructuredEdit[]; contents?: string; diff?: string }[]
   /** Free-form findings routed into the next Sense by the courier. */
   memo?: string
   /** A decision the agent is blocked on and needs a human to resolve. */
