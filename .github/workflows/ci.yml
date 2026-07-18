@@ -27,3 +27,7 @@ jobs:
       - run: npm ci
       - name: Build (tsc --noEmit && vite build)
         run: npm run build
+      - name: Typecheck the engine (Phase 0+, see ROADMAP.md)
+        run: npm run typecheck:engine
+      - name: Engine tests
+        run: npm test

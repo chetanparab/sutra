@@ -24,10 +24,15 @@ are scoped against a specific roadmap phase.
 pull request with **passing CI** and **at least one approving review**.
 
 1. **Fork** the repo and create a branch: `git checkout -b fix/short-description`.
-2. **Develop** with `npm run dev`.
+2. **Develop** with `npm run dev`. Working on the real-execution engine (see
+   [ROADMAP.md](./ROADMAP.md), Phase 0+)? Use `npm run engine -- <args>` — it's a
+   separate, Node-only module tree under [`engine/`](./engine), isolated from the
+   web app on purpose.
 3. **Verify** before you push — this must pass, exactly as CI runs it:
    ```bash
-   npm run build   # tsc --noEmit && vite build
+   npm run build             # tsc --noEmit && vite build (the web app)
+   npm run typecheck:engine  # tsc --noEmit against engine/
+   npm test                  # engine/**/*.test.ts, via Node's built-in test runner
    ```
 4. **Open a pull request** against `main`. Fill in the template: what changed, why,
    and how you verified it. Link any related issue.
