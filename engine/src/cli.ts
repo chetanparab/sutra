@@ -126,15 +126,21 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
   if (ndjson) {
     // The control channel for hosts that can't deliver signals portably (the
     // Tauri shell on every platform): a line saying "abort" on stdin triggers
-    // the same clean abort path as Ctrl+C.
-    process.stdin.setEncoding('utf8')
-    process.stdin.on('data', (chunk: string) => {
-      if (chunk.split('\n').some((l) => l.trim() === 'abort')) {
-        console.error('Abort requested over stdin…')
-        controller.abort()
-      }
-    })
-    process.stdin.unref()
+    // the same clean abort path as Ctrl+C. Guarded — stdin isn't always a
+    // normal, unref-able stream (piped/closed stdin), and a control-channel
+    // convenience must never crash the whole run.
+    try {
+      process.stdin.setEncoding('utf8')
+      process.stdin.on('data', (chunk: string) => {
+        if (chunk.split('\n').some((l) => l.trim() === 'abort')) {
+          console.error('Abort requested over stdin…')
+          controller.abort()
+        }
+      })
+      process.stdin.unref?.()
+    } catch {
+      /* no stdin control channel available — SIGINT still works */
+    }
   }
 
   // Autonomy (issue #39): default guided; autopilot needs the deliberate
@@ -145,22 +151,36 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
     process.exit(1)
   }
 
-  const outcome = await runLoop({
-    workspacePath,
-    intent,
-    providerId: flags.provider,
-    model: flags.model,
-    reflectModel: flags['reflect-model'],
-    verifyCommand: flags['verify-cmd'],
-    consentToRun: true,
-    maxIterations,
-    autonomy,
-    allowAutopilot: flags['allow-autopilot'] === 'true',
-    verifyTimeoutMs: flags['verify-timeout-ms'] ? Number(flags['verify-timeout-ms']) : undefined,
-    signal: controller.signal,
-    onEvent: ndjson ? (e) => console.log(JSON.stringify({ type: 'event', ...e })) : undefined,
-    onMemo: ndjson ? (m) => console.log(JSON.stringify({ type: 'memo', ...m })) : undefined,
-  })
+  let outcome: Awaited<ReturnType<typeof runLoop>>
+  try {
+    outcome = await runLoop({
+      workspacePath,
+      intent,
+      providerId: flags.provider,
+      model: flags.model,
+      reflectModel: flags['reflect-model'],
+      verifyCommand: flags['verify-cmd'],
+      consentToRun: true,
+      maxIterations,
+      autonomy,
+      allowAutopilot: flags['allow-autopilot'] === 'true',
+      verifyTimeoutMs: flags['verify-timeout-ms'] ? Number(flags['verify-timeout-ms']) : undefined,
+      signal: controller.signal,
+      onEvent: ndjson ? (e) => console.log(JSON.stringify({ type: 'event', ...e })) : undefined,
+      onMemo: ndjson ? (m) => console.log(JSON.stringify({ type: 'memo', ...m })) : undefined,
+    })
+  } catch (err) {
+    // Setup failures (not a git repo, missing API key, unknown provider/model)
+    // reach here. In ndjson mode, hand the shell a clean, structured error it
+    // can show the user — never a bare process crash it has to guess at.
+    const message = err instanceof Error ? err.message : String(err)
+    if (ndjson) {
+      console.log(JSON.stringify({ type: 'error', message }))
+      process.exitCode = 1
+      return
+    }
+    throw err
+  }
 
   if (ndjson) {
     // The terminal line: everything the shell needs to render the run's end

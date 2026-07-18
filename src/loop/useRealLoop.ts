@@ -120,19 +120,33 @@ export function useRealLoop(): RealLoopController {
         onMemo: (memo) => setAccum((prev) => ({ ...prev, memos: [...prev.memos, memo] })),
         onOutcome: (outcome) =>
           setMeta((prev) => ({ ...prev, outcome, branchName: outcome.branchName, diff: outcome.diff ?? null })),
+        // A clean, structured setup error (not a git repo, missing key, …):
+        // stop the loop and take the user back to the launch panel with the
+        // real message — not a mystery 'exited unexpectedly'.
+        onError: (message) => {
+          setMeta((prev) => ({ ...prev, launchError: message }))
+          setAccum((prev) => ({ ...prev, status: 'idle' }))
+          setStartedAt(null)
+        },
         onLog: (line) => setMeta((prev) => ({ ...prev, logs: [...prev.logs.slice(-199), line] })),
         onExit: () =>
           setAccum((prev) =>
             prev.status === 'running'
-              ? // The engine died without a converge/exhausted event (crash,
-                // kill): an honest stopped state, never a spinner forever.
-                { ...prev, status: 'exhausted', events: [...prev.events, { t: Date.now(), kind: 'exhausted', label: 'Engine exited unexpectedly', tone: 'warn' }] }
+              ? // The engine died without a converge/exhausted/error line (a
+                // real crash or kill): honest stopped state, and surface the
+                // last stderr line so it isn't a blank mystery.
+                {
+                  ...prev,
+                  status: 'exhausted',
+                  events: [...prev.events, { t: Date.now(), kind: 'exhausted', label: 'The engine stopped unexpectedly', tone: 'warn' }],
+                }
               : prev,
           ),
       })
     } catch (err) {
       handleRef.current = null
       setAccum((prev) => ({ ...prev, status: 'idle' }))
+      setStartedAt(null)
       setMeta((prev) => ({ ...prev, launchError: err instanceof Error ? err.message : String(err) }))
       throw err
     }
