@@ -69,6 +69,8 @@ function twoIterationScript(): ScriptedTurn[] {
 test('a subtly-wrong first attempt converges in 2 iterations with real verify runs', async () => {
   await withTask2Repo(async (root) => {
     const provider = scriptedProvider(twoIterationScript())
+    const streamedKinds: string[] = []
+    const streamedMemos: number[] = []
 
     const outcome = await runLoop({
       workspacePath: root,
@@ -78,6 +80,8 @@ test('a subtly-wrong first attempt converges in 2 iterations with real verify ru
       verifyCommand: TASK_2.verifyCommand,
       consentToRun: true,
       maxIterations: 3,
+      onEvent: (e) => streamedKinds.push(e.kind),
+      onMemo: (m) => streamedMemos.push(m.id),
     })
 
     assert.equal(outcome.status, 'converged')
@@ -96,6 +100,9 @@ test('a subtly-wrong first attempt converges in 2 iterations with real verify ru
     // the flight recorder tells the full story in order
     const kinds = outcome.events.map((e) => e.kind)
     assert.deepEqual(kinds, ['iteration', 'verify', 'memo', 'iteration', 'verify', 'converge'])
+    // and the live stream (the desktop shell's feed) saw the same story, live
+    assert.deepEqual(streamedKinds, kinds)
+    assert.deepEqual(streamedMemos, [1])
     // both iterations were committed to the shadow branch
     const log = execFileSync('git', ['log', '--oneline'], { cwd: root, encoding: 'utf8' })
     assert.match(log, /\[iteration 1\]/)
