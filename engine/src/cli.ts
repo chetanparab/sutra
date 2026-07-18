@@ -10,6 +10,7 @@ import { parseArgs } from './cliArgs'
 import { DEFAULT_GUARDRAILS } from './build/guardrails'
 import { estimateCeilingUsd, formatUsd } from './build/costEstimate'
 import { runLoop } from './loop/runLoop'
+import { mergeShadowBranch } from './merge/merge'
 
 function usage(): never {
   console.error(`sutra-engine — Phase 0/1/2 CLI (see ROADMAP.md)
@@ -40,6 +41,13 @@ Usage:
       the model can never author or alter it. --allow-run is the explicit
       consent to execute commands on this machine: verification runs code the
       agent just modified, so only use it on repos you trust.
+
+  npm run engine -- merge <workspace-path> <shadow-branch> --into <target-branch> [--pr true]
+      Phase 3: land a finished shadow branch — fast-forward, or rebase then
+      fast-forward if the target moved on. Conflicts and dirty worktrees are
+      clean refusals, never forced. --pr true pushes the branch and opens a
+      GitHub PR via gh instead of merging locally. Merge is ALWAYS explicit —
+      you are the gate; nothing in the engine calls this on its own.
 `)
   process.exit(1)
 }
@@ -163,6 +171,26 @@ async function main(): Promise<void> {
     case 'loop': {
       const { positional, flags } = parseArgs(rest)
       await runLoopCommand(positional, flags)
+      return
+    }
+    case 'merge': {
+      const { positional, flags } = parseArgs(rest)
+      const [workspacePath, branchName] = positional
+      if (!workspacePath || !branchName || !flags.into) usage()
+      const result = mergeShadowBranch({
+        workspaceRoot: workspacePath,
+        branchName,
+        targetBranch: flags.into,
+        mode: flags.pr === 'true' ? 'pr' : 'merge',
+      })
+      if (result.status === 'merged') {
+        console.log(`Merged "${branchName}" into "${result.targetBranch}" at ${result.sha.slice(0, 8)}${result.fastForward ? ' (fast-forward)' : ' (rebased, then fast-forward)'}.`)
+      } else if (result.status === 'pr-created') {
+        console.log(`Opened ${result.url} — review and merge it there.`)
+      } else {
+        console.error(`Refused: ${result.reason}`)
+        process.exitCode = 1
+      }
       return
     }
     default:

@@ -24,6 +24,8 @@ purpose: the web app's Vite build must never be able to pull
 | `src/reflect/reflect.ts` | Real Reflect: an LLM call that turns a failing verify output into a `{finding, directive}` courier memo (the `HermesMemo` shape the web UI already renders), with brace-walking JSON extraction and a graceful fallback. | 2 |
 | `src/loop/runLoop.ts` | The full iteration engine: Build → commit → real Verify → Reflect → iterate, until convergence or budget exhaustion. Flight-recorder events in the web UI's `LoopEvent` shape. Failed iterations' commits are kept (failures carry information); an abort/guardrail rolls back only uncommitted partial work. | 2 |
 | `evals/tasks/task2FixAverage.ts` | Phase 2's benchmark fixture: a repo whose `node check.mjs` REALLY fails (`average([])` → NaN, expected 0) until the loop really fixes it. | 2 |
+| `src/merge/merge.ts` | Real Merge: fast-forward the shadow branch into the target, rebase-then-ff when the target moved, or push + `gh pr create`. Human-gated always; conflicts and dirty worktrees are typed refusals, never forced. | 3 |
+| `scripts/build-sidecar.mjs` | Packages the engine as a self-contained sidecar binary via Node SEA for the Tauri shell — decision record in [`SIDECAR.md`](SIDECAR.md). | 3 |
 | `src/commands/applyTestEdit.ts` | Phase 0's scripted demo command — no LLM, self-bootstraps a toy fixture. | 0 |
 | `src/cli.ts` | Thin argv dispatch around `commands/` — this is what `npm run engine` runs. | 0+1 |
 | `src/testing/scriptedProvider.ts` | A test-only `LlmProvider` that plays back a scripted multi-turn conversation — what proves the tool loop's orchestration (turns, error recovery, guardrails, abort) without any real model. | 1 |
