@@ -8,6 +8,7 @@
  * are pure and exported for fixture-based testing — see openaiCompat.test.ts.
  */
 import type { ChatMessage, Completion, LlmProvider, ToolCall, ToolDef } from '../../../src/contracts/llm'
+import { ContextLimitError, fetchWithRetry, looksLikeContextLimit } from './retry'
 
 const DEFAULT_BASE_URL = 'https://api.openai.com/v1'
 
@@ -118,6 +119,8 @@ export interface OpenAiCompatProviderOptions {
   baseUrl?: string
   /** Stable id override — useful when this is really "groq" or "ollama" wearing the OpenAI shape. */
   id?: string
+  /** Injection point for tests; defaults to global fetch. */
+  fetchImpl?: typeof fetch
 }
 
 export function createOpenAiCompatProvider(options: OpenAiCompatProviderOptions = {}): LlmProvider {
@@ -136,15 +139,21 @@ export function createOpenAiCompatProvider(options: OpenAiCompatProviderOptions 
         temperature: req.opts.temperature,
       })
 
-      const res = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: req.opts.signal,
-      })
+      // Rate limits / transient 5xx / network blips retry with backoff inside
+      // fetchWithRetry (Phase 4, issue #38); what comes back here is final.
+      const res = await fetchWithRetry(
+        `${baseUrl.replace(/\/$/, '')}/chat/completions`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        { signal: req.opts.signal, fetchImpl: options.fetchImpl },
+      )
 
       if (!res.ok) {
         const errText = await res.text().catch(() => '')
+        if (looksLikeContextLimit(res.status, errText)) throw new ContextLimitError(options.id ?? 'openai-compat', errText)
         throw new Error(`OpenAI-compatible API error ${res.status}: ${errText.slice(0, 500)}`)
       }
 

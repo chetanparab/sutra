@@ -6,6 +6,7 @@
  * fixture JSON, without a live network call — see anthropic.test.ts.
  */
 import type { ChatMessage, Completion, LlmProvider, ToolCall, ToolDef } from '../../../src/contracts/llm'
+import { ContextLimitError, fetchWithRetry, looksLikeContextLimit } from './retry'
 
 const API_URL = 'https://api.anthropic.com/v1/messages'
 const API_VERSION = '2023-06-01'
@@ -141,6 +142,8 @@ export function fromAnthropicResponse(body: AnthropicResponseBody): Completion {
 export interface AnthropicProviderOptions {
   /** Defaults to process.env.ANTHROPIC_API_KEY. */
   apiKey?: string
+  /** Injection point for tests; defaults to global fetch. */
+  fetchImpl?: typeof fetch
 }
 
 export function createAnthropicProvider(options: AnthropicProviderOptions = {}): LlmProvider {
@@ -158,15 +161,21 @@ export function createAnthropicProvider(options: AnthropicProviderOptions = {}):
         temperature: req.opts.temperature,
       })
 
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'x-api-key': apiKey, 'anthropic-version': API_VERSION, 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: req.opts.signal,
-      })
+      // Rate limits / transient 5xx / network blips retry with backoff inside
+      // fetchWithRetry (Phase 4, issue #38); what comes back here is final.
+      const res = await fetchWithRetry(
+        API_URL,
+        {
+          method: 'POST',
+          headers: { 'x-api-key': apiKey, 'anthropic-version': API_VERSION, 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        { signal: req.opts.signal, fetchImpl: options.fetchImpl },
+      )
 
       if (!res.ok) {
         const errText = await res.text().catch(() => '')
+        if (looksLikeContextLimit(res.status, errText)) throw new ContextLimitError('anthropic', errText)
         throw new Error(`Anthropic API error ${res.status}: ${errText.slice(0, 500)}`)
       }
 

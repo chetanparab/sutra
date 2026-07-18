@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { createFsTools, EditMatchError } from './fs'
+import { createFsTools, EditMatchError, READ_FILE_MAX_CHARS } from './fs'
 import { WorkspaceEscapeError } from './workspace'
 
 function withTempRoot(fn: (root: string) => void) {
@@ -81,5 +81,64 @@ test('every tool call outside the workspace root is rejected', () => {
     assert.throws(() => tools.readFile('../../etc/passwd'), WorkspaceEscapeError)
     assert.throws(() => tools.listDir('../../etc'), WorkspaceEscapeError)
     assert.throws(() => tools.editFile('../../etc/passwd', { oldString: 'x', newString: 'y' }), WorkspaceEscapeError)
+  })
+})
+
+test('a huge file is truncated with an explicit marker; small files come back whole', () => {
+  withTempRoot((root) => {
+    const tools = createFsTools(root)
+    writeFileSync(join(root, 'huge.txt'), 'x'.repeat(READ_FILE_MAX_CHARS + 5000))
+    const result = tools.readFile('huge.txt')
+    assert.ok(result.length < READ_FILE_MAX_CHARS + 500)
+    assert.match(result, /truncated by the engine/)
+    assert.match(result, /the first 48000 are shown/)
+
+    writeFileSync(join(root, 'small.txt'), 'tiny content')
+    assert.equal(tools.readFile('small.txt'), 'tiny content')
+  })
+})
+
+test('editing text beyond the truncation point still works — matching runs on the full file', () => {
+  withTempRoot((root) => {
+    const tools = createFsTools(root)
+    const content = 'x'.repeat(READ_FILE_MAX_CHARS) + '\nconst hidden = "beyond the fold"\n'
+    writeFileSync(join(root, 'huge.txt'), content)
+    tools.editFile('huge.txt', { oldString: 'beyond the fold', newString: 'still editable' })
+    assert.match(tools.readFile('huge.txt'), /truncated by the engine/) // read is capped…
+    // …but the write really landed (check raw content via a fresh read of the tail)
+    assert.doesNotThrow(() => tools.editFile('huge.txt', { oldString: 'still editable', newString: 'ok' }))
+  })
+})
+
+test('a whitespace-drift edit miss quotes the file\'s exact nearest region', () => {
+  withTempRoot((root) => {
+    const tools = createFsTools(root)
+    writeFileSync(join(root, 'code.ts'), 'function greet() {\n    return "hi"  // four-space indent\n}\n')
+    // a tab-indented attempt at the space-indented line: zero exact matches, hint shows the real bytes
+    try {
+      tools.editFile('code.ts', { oldString: '\treturn "hi"  // four-space indent', newString: 'x' })
+      assert.fail('should have thrown')
+    } catch (err) {
+      assert.ok(err instanceof EditMatchError)
+      assert.match(err.message, /nearest matching region actually reads/)
+      assert.match(err.message, /four-space indent/)
+      assert.match(err.message, /whitespace shown exactly/)
+    }
+  })
+})
+
+test('an edit miss with no nearby region still gives the plain retry guidance', () => {
+  withTempRoot((root) => {
+    const tools = createFsTools(root)
+    writeFileSync(join(root, 'a.txt'), 'completely unrelated content\n')
+    try {
+      tools.editFile('a.txt', { oldString: 'nothing like this exists', newString: 'x' })
+      assert.fail('should have thrown')
+    } catch (err) {
+      assert.ok(err instanceof EditMatchError)
+      assert.match(err.message, /No exact match/)
+      assert.match(err.message, /retry with its exact current text/)
+      assert.doesNotMatch(err.message, /nearest matching region/)
+    }
   })
 })

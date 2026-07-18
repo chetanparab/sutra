@@ -60,11 +60,49 @@ function withNoFollowFd<T>(abs: string, flags: number, fn: (fd: number) => T): T
   }
 }
 
+/**
+ * read_file output cap (Phase 4, issue #38): ~48k chars ≈ 12k tokens. A repo
+ * with one giant generated file must not blow the whole context window in a
+ * single tool result — the model gets the head of the file plus an explicit
+ * marker saying what happened, so it can react (narrow the work, edit within
+ * the shown portion) instead of silently drowning.
+ */
+export const READ_FILE_MAX_CHARS = 48_000
+
+function truncateForContext(content: string, relPath: string): string {
+  if (content.length <= READ_FILE_MAX_CHARS) return content
+  return (
+    content.slice(0, READ_FILE_MAX_CHARS) +
+    `\n…[truncated by the engine: "${relPath}" is ${content.length} characters; the first ${READ_FILE_MAX_CHARS} are shown. ` +
+    'Edits must use oldString text from the shown portion only. If the change belongs beyond this point, say so instead of guessing.]'
+  )
+}
+
+/**
+ * When an edit misses, hand the model the file's ACTUAL text nearest its
+ * attempt (issue #38's "retry with the exact mismatch"): most misses are
+ * whitespace/indentation drift or a stale read, and seeing the real bytes
+ * beats a blind re-read round-trip.
+ */
+function nearestMismatchHint(content: string, oldString: string): string {
+  const collapse = (s: string) => s.replace(/\s+/g, ' ').trim()
+  const firstMeaningfulLine = oldString.split('\n').find((l) => l.trim() !== '')?.trim()
+  if (!firstMeaningfulLine) return ''
+
+  const lines = content.split('\n')
+  const hitIndex = lines.findIndex((l) => collapse(l).includes(collapse(firstMeaningfulLine)))
+  if (hitIndex === -1) return ''
+
+  const region = lines.slice(Math.max(0, hitIndex - 1), hitIndex + Math.max(2, oldString.split('\n').length + 1)).join('\n')
+  return ` The nearest matching region actually reads:\n${JSON.stringify(region)}\n(whitespace shown exactly — copy from this).`
+}
+
 export function createFsTools(workspaceRoot: string): FsTools {
   return {
     readFile(relPath) {
       const abs = resolveInWorkspace(workspaceRoot, relPath)
-      return withNoFollowFd(abs, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW, (fd) => readFileSync(fd, 'utf8'))
+      const content = withNoFollowFd(abs, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW, (fd) => readFileSync(fd, 'utf8'))
+      return truncateForContext(content, relPath)
     },
 
     listDir(relPath = '.') {
@@ -81,7 +119,12 @@ export function createFsTools(workspaceRoot: string): FsTools {
       const matchCount = content.split(oldString).length - 1
 
       if (matchCount === 0) {
-        throw new EditMatchError(`No match for the given oldString in "${relPath}".`, relPath, oldString, 0)
+        throw new EditMatchError(
+          `No exact match for the given oldString in "${relPath}".${nearestMismatchHint(content, oldString)} Read the file and retry with its exact current text.`,
+          relPath,
+          oldString,
+          0,
+        )
       }
       if (matchCount > 1) {
         throw new EditMatchError(

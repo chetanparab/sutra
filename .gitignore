@@ -45,3 +45,4 @@ engine/evals/fixtures/*/
 dist-sidecar/
 src-tauri/target/
 src-tauri/gen/
+.cargo/
