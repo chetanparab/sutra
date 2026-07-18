@@ -11,7 +11,11 @@
     "typecheck:engine": "tsc --noEmit -p engine/tsconfig.json",
     "test": "node engine/scripts/run-tests.mjs",
     "eval:task1": "tsx engine/evals/run-benchmark.ts",
-    "eval:task2": "tsx engine/evals/run-benchmark-task2.ts"
+    "eval:task2": "tsx engine/evals/run-benchmark-task2.ts",
+    "sidecar": "node engine/scripts/build-sidecar.mjs",
+    "tauri": "tauri",
+    "desktop:dev": "npm run sidecar && tauri dev",
+    "desktop:build": "npm run sidecar && tauri build"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.2.9",
@@ -21,6 +25,7 @@
     "@fontsource-variable/space-grotesk": "^5.2.10",
     "@jitl/quickjs-singlefile-browser-release-sync": "^0.32.0",
     "@jitl/quickjs-wasmfile-release-sync": "^0.32.0",
+    "@tauri-apps/api": "^2.11.1",
     "lucide-react": "^1.25.0",
     "quickjs-emscripten": "^0.32.0",
     "react": "^19.1.0",
@@ -28,6 +33,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^26.1.1",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",

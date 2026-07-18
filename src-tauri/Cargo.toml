@@ -1,0 +1,29 @@
+[package]
+name = "sutra"
+version = "2.0.0-alpha.0"
+description = "Sutra — the loop-engineering desktop shell (ROADMAP.md Phase 3)"
+authors = ["Chetan Parab"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "sutra_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3" }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.3" }
+tauri-plugin-log = "2"
+tauri-plugin-shell = "2"
+
+# Keep debug builds lean: full DWARF debug info balloons target/ into multiple
+# GB, and the dev machine runs close to its disk. Line tables keep panics and
+# backtraces readable, which is all the debugging this shell needs.
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
