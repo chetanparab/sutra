@@ -10,8 +10,12 @@
 > **Progress:** Phase 0 ✅ ([#21](https://github.com/chetanparab/sutra/pull/21)) ·
 > Phase 1 ✅ ([#22](https://github.com/chetanparab/sutra/pull/22)) ·
 > Phase 2 ✅ ([#23](https://github.com/chetanparab/sutra/pull/23)) ·
-> **Phase 3 is next** (Tauri desktop shell + real Merge — starts with the
-> sidecar-packaging spike named below).
+> Phase 3 **code-complete** ([#30](https://github.com/chetanparab/sutra/pull/30)–[#36](https://github.com/chetanparab/sutra/pull/36):
+> Node SEA sidecar, real Merge, Tauri shell, live loop end to end, real-mode
+> surfaces, OS keychain). The `v2.0.0-beta.1` tag waits on the phase's
+> acceptance run — a signed-off real repo → real loop → real branch session in
+> the desktop app (`npm run desktop:dev`), which only a human with a real API
+> key can perform. **Phase 4 is next** after that sign-off.
 >
 > **What this document is.** [`ARCHITECTURE.md`](ARCHITECTURE.md) explains the
 > *contracts* — the seams between the loop (ours) and the intelligence (yours). This
