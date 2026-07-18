@@ -28,7 +28,7 @@ import { createFsTools } from '../tools/fs'
 import { outputTailForMemo, runVerifyCommand, type VerifyRunResult } from '../verify/runner'
 import { resolveProvider } from '../commands/build'
 import { existsSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 
 const DEFAULT_MAX_ITERATIONS = 3
 
@@ -88,7 +88,13 @@ export type LoopOutcome =
 export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
   const workspaceRoot = resolve(params.workspacePath)
   if (!existsSync(workspaceRoot)) {
-    throw new Error(`No repo at ${workspaceRoot}. The loop requires an existing repo — it does not bootstrap fixtures.`)
+    throw new Error(`No folder at ${workspaceRoot}.`)
+  }
+  // The loop works on a git repo (shadow branch + commits). Check up front so
+  // a common mistake — pointing at a plain folder — gets a clear message
+  // instead of a cryptic git failure mid-run.
+  if (!existsSync(join(workspaceRoot, '.git'))) {
+    throw new Error(`"${workspaceRoot}" is not a git repository. Run \`git init\` in it (and make a first commit), then try again.`)
   }
 
   // Autopilot in real mode is opt-in, not default (issue #39). Refuse here at

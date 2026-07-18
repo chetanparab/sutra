@@ -30,13 +30,14 @@ export type EngineStreamLine =
   | ({ type: 'event' } & LoopEvent)
   | ({ type: 'memo' } & HermesMemo)
   | ({ type: 'outcome' } & EngineOutcome)
+  | { type: 'error'; message: string }
 
 /** Defensive parse: the stream is ours end-to-end, but a desktop app must not crash on a torn line. */
 export function parseEngineLine(raw: string): EngineStreamLine | null {
   if (!raw.trim().startsWith('{')) return null
   try {
     const parsed = JSON.parse(raw) as { type?: unknown }
-    if (parsed.type === 'event' || parsed.type === 'memo' || parsed.type === 'outcome') {
+    if (parsed.type === 'event' || parsed.type === 'memo' || parsed.type === 'outcome' || parsed.type === 'error') {
       return parsed as EngineStreamLine
     }
     return null
@@ -70,6 +71,8 @@ export interface RealLoopHandlers {
   onEvent?: (event: LoopEvent) => void
   onMemo?: (memo: HermesMemo) => void
   onOutcome?: (outcome: EngineOutcome) => void
+  /** A clean, structured setup error (not a git repo, missing key, …). */
+  onError?: (message: string) => void
   /** Engine stderr narration — surfaced in the console dock, never parsed. */
   onLog?: (line: string) => void
   onExit?: (code: number | null) => void
@@ -93,6 +96,7 @@ export async function startRealLoop(args: RealLoopArgs, handlers: RealLoopHandle
       if (!line) return
       if (line.type === 'event') handlers.onEvent?.(line)
       else if (line.type === 'memo') handlers.onMemo?.(line)
+      else if (line.type === 'error') handlers.onError?.(line.message)
       else handlers.onOutcome?.(line)
     }),
     listen<string>('engine:log', ({ payload }) => handlers.onLog?.(payload)),

@@ -185,7 +185,7 @@ test('a guardrail violation mid-iteration keeps completed iterations, discards p
   })
 })
 
-test('the loop requires an existing repo', async () => {
+test('the loop requires an existing folder', async () => {
   await assert.rejects(
     runLoop({
       workspacePath: '/tmp/definitely-not-a-repo-sutra-loop',
@@ -195,7 +195,7 @@ test('the loop requires an existing repo', async () => {
       verifyCommand: 'true',
       consentToRun: true,
     }),
-    /requires an existing repo/,
+    /No folder at/,
   )
 })
 
@@ -251,4 +251,23 @@ test('autopilot runs only with the deliberate allowAutopilot opt-in', async () =
     })
     assert.equal(outcome.status, 'converged')
   })
+})
+
+test('a non-git folder is refused up front with a clear, actionable message', async () => {
+  const plain = mkdtempSync(join(tmpdir(), 'sutra-plain-'))
+  try {
+    await assert.rejects(
+      runLoop({
+        workspacePath: plain,
+        intent: 'x',
+        provider: scriptedProvider([]),
+        model: 'test',
+        verifyCommand: 'true',
+        consentToRun: true,
+      }),
+      /not a git repository/,
+    )
+  } finally {
+    rmSync(plain, { recursive: true, force: true })
+  }
 })
