@@ -215,7 +215,7 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
  * protocol changes shape — the shell refuses to drive an engine whose major
  * version it doesn't recognize (wired with the real IPC in the next step).
  */
-const ENGINE_VERSION = '2.0.0-alpha.0'
+const ENGINE_VERSION = '2.0.0-beta.1'
 
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2)
