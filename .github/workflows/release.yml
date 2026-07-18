@@ -23,10 +23,18 @@ jobs:
       - run: npm run build
       - name: Package web build
         run: cd dist && zip -r "../sutra-web-${{ github.ref_name }}.zip" . && cd ..
-      - name: Publish release
+      - name: Draft release with the web bundle
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" sutra-web-*.zip --title "Sutra ${{ github.ref_name }}" --generate-notes
+        # Create the release as a DRAFT so the whole thing — web zip plus the
+        # native installers the next job attaches — is one draft you review and
+        # publish. (--draft matches the native job's releaseDraft: true; a
+        # published-then-drafted mix would be inconsistent.) Idempotent: if a
+        # re-run already made the draft, just add the asset.
+        run: |
+          gh release view "${{ github.ref_name }}" >/dev/null 2>&1 \
+            && gh release upload "${{ github.ref_name }}" sutra-web-*.zip --clobber \
+            || gh release create "${{ github.ref_name }}" sutra-web-*.zip --draft --title "Sutra ${{ github.ref_name }}" --generate-notes
 
   # Native desktop installers (.dmg / .msi / .AppImage). Builds on each OS,
   # bundles the engine sidecar first, and attaches the installers to the same
