@@ -7,6 +7,12 @@
 > says why — not a drive-by decision inside an implementation PR. Wording fixes,
 > clarifications and marking things done are normal PRs.
 >
+> **Progress:** Phase 0 ✅ ([#21](https://github.com/chetanparab/sutra/pull/21)) ·
+> Phase 1 ✅ ([#22](https://github.com/chetanparab/sutra/pull/22)) ·
+> Phase 2 ✅ ([#23](https://github.com/chetanparab/sutra/pull/23)) ·
+> **Phase 3 is next** (Tauri desktop shell + real Merge — starts with the
+> sidecar-packaging spike named below).
+>
 > **What this document is.** [`ARCHITECTURE.md`](ARCHITECTURE.md) explains the
 > *contracts* — the seams between the loop (ours) and the intelligence (yours). This
 > document is the *engineering plan*: in what order we build the real system behind
