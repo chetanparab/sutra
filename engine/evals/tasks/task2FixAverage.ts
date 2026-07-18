@@ -64,6 +64,10 @@ export function makeTask2Fixture(targetPath: string): void {
   git(['init', '--initial-branch=main'])
   git(['config', 'user.email', 'engine@sutra.local'])
   git(['config', 'user.name', 'Sutra Engine Fixture'])
+  // Deterministic line endings across platforms (Windows git defaults to
+  // autocrlf=true, which would break the scripted exact-match edits).
+  git(['config', 'core.autocrlf', 'false'])
+  git(['config', 'core.eol', 'lf'])
   git(['add', '-A'])
   git(['commit', '-m', 'Initial task-2 fixture (check.mjs fails: average([]) is NaN)'])
 }

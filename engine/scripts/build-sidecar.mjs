@@ -92,8 +92,17 @@ try {
   if (isMac) run('codesign', ['--sign', '-', out])
 
   // 5. Smoke test — the binary must run the REAL Phase 0 path, not just --help.
+  //    On failure, surface the binary's own stdout+stderr (execFileSync hides
+  //    them behind a generic "Command failed"), so a CI failure is diagnosable.
   const smokeRepo = join(work, 'smoke-repo')
-  const smokeOut = execFileSync(out, ['apply-test-edit', smokeRepo], { encoding: 'utf8' })
+  let smokeOut
+  try {
+    smokeOut = execFileSync(out, ['apply-test-edit', smokeRepo], { encoding: 'utf8' })
+  } catch (err) {
+    const stdout = err.stdout ? String(err.stdout) : ''
+    const stderr = err.stderr ? String(err.stderr) : ''
+    throw new Error(`Sidecar smoke test crashed (exit ${err.status}).\n--- stdout ---\n${stdout}\n--- stderr ---\n${stderr}`)
+  }
   if (!/Committed iteration 1/.test(smokeOut)) {
     throw new Error(`Sidecar smoke test failed — unexpected output:\n${smokeOut}`)
   }

@@ -67,6 +67,8 @@ console.log('ok')
   git(['init', '--initial-branch=main'])
   git(['config', 'user.email', 'hostile@sutra.local'])
   git(['config', 'user.name', 'Hostile Fixture'])
+  git(['config', 'core.autocrlf', 'false'])
+  git(['config', 'core.eol', 'lf'])
   git(['add', '-A'])
   git(['commit', '-m', 'Initial hostile fixture'])
 }
