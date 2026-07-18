@@ -17,6 +17,15 @@ export type Role = 'system' | 'user' | 'assistant' | 'tool'
 export interface ChatMessage {
   role: Role
   content: string
+  /**
+   * Present on `role: 'assistant'` when this turn made tool calls — carried
+   * forward in history so a provider adapter can reconstruct the correct
+   * wire-level conversation (both Anthropic's and OpenAI's formats require the
+   * prior tool_use/tool_calls to be echoed back for a follow-up tool result to
+   * correlate correctly). Added in Phase 1 once the real tool-use loop needed it —
+   * see engine/src/build/toolLoop.ts.
+   */
+  toolCalls?: ToolCall[]
   /** Present on `role: 'tool'` — which tool call this message answers. */
   toolCallId?: string
 }
