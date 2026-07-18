@@ -47,12 +47,6 @@ async fn loop_start(app: AppHandle, state: State<'_, RunningLoop>, args: LoopArg
     if !args.consent_to_run {
         return Err("consent_to_run must be explicitly true — the loop executes your verify command.".into());
     }
-    {
-        let guard = state.0.lock().unwrap();
-        if guard.is_some() {
-            return Err("a loop is already running — abort it first.".into());
-        }
-    }
 
     let mut cmd = app
         .shell()
@@ -97,8 +91,19 @@ async fn loop_start(app: AppHandle, state: State<'_, RunningLoop>, args: LoopArg
         cmd = cmd.env(var, stored);
     }
 
-    let (mut rx, child) = cmd.spawn().map_err(|e| format!("engine failed to spawn: {e}"))?;
-    *state.0.lock().unwrap() = Some(child);
+    // Reserve the single-loop slot, spawn, and store the handle while holding
+    // the lock the whole time — so two racing loop_start calls can't both pass
+    // an "is one running?" check and spawn two children (the first of which
+    // abort could then never reach). No await happens under the guard.
+    let mut rx = {
+        let mut guard = state.0.lock().unwrap();
+        if guard.is_some() {
+            return Err("a loop is already running — abort it first.".into());
+        }
+        let (rx, child) = cmd.spawn().map_err(|e| format!("engine failed to spawn: {e}"))?;
+        *guard = Some(child);
+        rx
+    };
 
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {

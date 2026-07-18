@@ -19,7 +19,8 @@
  * externalBin sidecar mechanism expects).
  */
 import { execFileSync } from 'node:child_process'
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -113,12 +114,20 @@ async function resolveSelfContainedNode(work) {
 
   mkdirSync(cacheDir, { recursive: true })
   const archiveExt = isWindows ? 'zip' : 'tar.xz'
-  const url = `https://nodejs.org/dist/${version}/${distName}.${archiveExt}`
+  const archiveFile = `${distName}.${archiveExt}`
+  const url = `https://nodejs.org/dist/${version}/${archiveFile}`
   console.log(`Downloading official node binary: ${url}`)
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Download failed (${res.status}) for ${url}. Set SUTRA_SEA_NODE to a self-contained node binary instead.`)
   const archive = join(work, `node-dist.${archiveExt}`)
-  writeFileSync(archive, Buffer.from(await res.arrayBuffer()))
+  const bytes = Buffer.from(await res.arrayBuffer())
+  writeFileSync(archive, bytes)
+
+  // Supply-chain integrity: verify the download against nodejs.org's signed
+  // SHASUMS256 for this exact release before we ever unpack or execute it. A
+  // MITM or a compromised mirror serving a tampered node — the binary the
+  // whole sidecar is built on — is caught here, not after it runs.
+  await verifyNodeChecksum(version, archiveFile, bytes)
 
   if (isWindows) {
     // PowerShell's Expand-Archive is always present on windows-latest runners.
@@ -131,6 +140,28 @@ async function resolveSelfContainedNode(work) {
   }
   assertSelfContained(cached)
   return cached
+}
+
+/**
+ * Verify a downloaded node archive against nodejs.org's published
+ * SHASUMS256.txt for that release. Throws on any mismatch or a missing entry —
+ * the sidecar must never be built on an unverified node binary.
+ */
+async function verifyNodeChecksum(version, archiveFile, bytes) {
+  const sumsUrl = `https://nodejs.org/dist/${version}/SHASUMS256.txt`
+  const res = await fetch(sumsUrl)
+  if (!res.ok) throw new Error(`Could not fetch ${sumsUrl} (${res.status}) to verify the node download.`)
+  const sums = await res.text()
+
+  const actual = createHash('sha256').update(bytes).digest('hex')
+  // Each line is "<sha256>  <filename>".
+  const line = sums.split('\n').find((l) => l.trim().endsWith(` ${archiveFile}`) || l.trim().endsWith(`  ${archiveFile}`))
+  if (!line) throw new Error(`No SHASUMS256 entry for ${archiveFile} — cannot verify the node download.`)
+  const expected = line.trim().split(/\s+/)[0]
+  if (actual !== expected) {
+    throw new Error(`Checksum mismatch for ${archiveFile}: expected ${expected}, got ${actual}. Refusing to build the sidecar on an unverified node binary.`)
+  }
+  console.log(`Verified ${archiveFile} against nodejs.org SHASUMS256.`)
 }
 
 function assertSelfContained(path) {
