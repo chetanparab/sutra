@@ -28,11 +28,14 @@ pub struct LoopArgs {
     consent_to_run: bool,
     max_iterations: u8,
     reflect_model: Option<String>,
-    /// Session-typed API key. Reaches the engine ONLY as an env var on the
-    /// child (the frozen day-one posture: never argv, never disk, never
-    /// logged). Empty/None means "inherit the shell env" — the dev-terminal
-    /// case. The OS keychain replaces per-session typing in issue #28.
+    /// Freshly-typed API key. Reaches the engine ONLY as an env var on the
+    /// child (the frozen day-one posture: never argv, never disk in
+    /// plaintext, never logged). None means "use the OS keychain, else
+    /// inherit the shell env" — the stored and dev-terminal cases.
     api_key: Option<String>,
+    /// When a fresh key is supplied: save it to the OS keychain for next
+    /// time. The UI's "remember" checkbox.
+    store_key: Option<bool>,
 }
 
 /// Spawn the engine sidecar in `--events ndjson` mode and forward its stream
@@ -75,15 +78,23 @@ async fn loop_start(app: AppHandle, state: State<'_, RunningLoop>, args: LoopArg
     if let Some(reflect_model) = &args.reflect_model {
         cmd = cmd.args(["--reflect-model", reflect_model]);
     }
-    if let Some(key) = args.api_key.as_deref().filter(|k| !k.trim().is_empty()) {
-        // Env on the child only — never argv (visible in process lists), never
-        // disk, never logs. Which variable depends on the provider contract.
-        let var = match args.provider.as_str() {
-            "anthropic" => "ANTHROPIC_API_KEY",
-            "openai-compat" => "OPENAI_API_KEY",
-            other => return Err(format!("unknown provider \"{other}\"")),
-        };
+    // Key resolution: freshly typed > OS keychain > inherited shell env.
+    // Env on the child only — never argv (visible in process lists), never
+    // plaintext disk, never logs. Which variable depends on the provider.
+    let var = match args.provider.as_str() {
+        "anthropic" => "ANTHROPIC_API_KEY",
+        "openai-compat" => "OPENAI_API_KEY",
+        other => return Err(format!("unknown provider \"{other}\"")),
+    };
+    if let Some(key) = args.api_key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
+        if args.store_key.unwrap_or(false) {
+            keychain_entry(&args.provider)?
+                .set_password(key)
+                .map_err(|e| format!("could not save the key to the OS keychain: {e}"))?;
+        }
         cmd = cmd.env(var, key);
+    } else if let Ok(stored) = keychain_entry(&args.provider)?.get_password() {
+        cmd = cmd.env(var, stored);
     }
 
     let (mut rx, child) = cmd.spawn().map_err(|e| format!("engine failed to spawn: {e}"))?;
@@ -119,6 +130,35 @@ fn loop_abort(state: State<'_, RunningLoop>) -> Result<(), String> {
     match guard.as_mut() {
         Some(child) => child.write(b"abort\n").map_err(|e| format!("could not reach the engine: {e}")),
         None => Err("no loop is running.".into()),
+    }
+}
+
+/// One keychain entry per provider, owned by the app identifier. The webview
+/// NEVER reads a stored key back — these commands answer "is one saved?" and
+/// "forget it"; only `loop_start` (host-side) ever touches the secret itself,
+/// pulling it straight from the OS store into the child's env.
+fn keychain_entry(provider: &str) -> Result<keyring::Entry, String> {
+    match provider {
+        "anthropic" | "openai-compat" => keyring::Entry::new("app.sutra.desktop", &format!("api-key-{provider}"))
+            .map_err(|e| format!("keychain unavailable: {e}")),
+        other => Err(format!("unknown provider \"{other}\"")),
+    }
+}
+
+#[tauri::command]
+fn keychain_status(provider: String) -> Result<bool, String> {
+    match keychain_entry(&provider)?.get_password() {
+        Ok(_) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(e) => Err(format!("keychain read failed: {e}")),
+    }
+}
+
+#[tauri::command]
+fn keychain_delete(provider: String) -> Result<(), String> {
+    match keychain_entry(&provider)?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(format!("keychain delete failed: {e}")),
     }
 }
 
@@ -201,7 +241,14 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![engine_version, loop_start, loop_abort, merge_branch])
+        .invoke_handler(tauri::generate_handler![
+            engine_version,
+            loop_start,
+            loop_abort,
+            merge_branch,
+            keychain_status,
+            keychain_delete
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

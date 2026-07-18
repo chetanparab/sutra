@@ -5,10 +5,10 @@
  * checkbox — the CLI's --allow-run flag as a surface a human reads. Renders
  * only inside the desktop shell; the web demo never sees it.
  */
-import { FolderOpen, KeyRound, Play, TriangleAlert } from 'lucide-react'
-import { useState } from 'react'
+import { FolderOpen, KeyRound, Play, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Button, Label, Slab, cn } from '../components/ui'
-import { pickWorkspaceFolder, type RealLoopArgs } from '../desktop/realLoop'
+import { keychainDelete, keychainStatus, pickWorkspaceFolder, type RealLoopArgs } from '../desktop/realLoop'
 
 const FIELD =
   'w-full rounded-[var(--radius)] border border-primary/12 bg-primary/[0.03] px-3 py-2 text-[12.5px] text-primary outline-none transition-colors placeholder:text-faint focus:border-accent/50'
@@ -35,7 +35,26 @@ export default function RealLaunchPanel({
   const [model, setModel] = useState('')
   const [verifyCmd, setVerifyCmd] = useState('')
   const [apiKey, setApiKey] = useState('')
+  const [storeKey, setStoreKey] = useState(true)
+  const [hasStoredKey, setHasStoredKey] = useState(false)
   const [consent, setConsent] = useState(false)
+
+  // The stored key itself never reaches this webview — only whether one
+  // exists. Re-checked per provider (each has its own keychain entry).
+  useEffect(() => {
+    let cancelled = false
+    keychainStatus(provider).then((v) => {
+      if (!cancelled) setHasStoredKey(v)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [provider])
+
+  const forgetKey = async () => {
+    await keychainDelete(provider)
+    setHasStoredKey(false)
+  }
 
   const complete = workspacePath !== '' && intent.trim() !== '' && model.trim() !== '' && verifyCmd.trim() !== '' && consent
   const keyName = PROVIDERS.find((p) => p.id === provider)?.keyName ?? 'API key'
@@ -93,17 +112,35 @@ export default function RealLaunchPanel({
         className={cn(FIELD, 'font-mono text-[11.5px]')}
       />
 
-      <div className="relative">
-        <KeyRound size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={`${keyName} — this session only, never written to disk`}
-          autoComplete="off"
-          className={cn(FIELD, 'pl-8 font-mono text-[11.5px]')}
-        />
-      </div>
+      {hasStoredKey ? (
+        <div className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-primary/12 bg-primary/[0.03] px-3 py-2">
+          <span className="flex min-w-0 items-center gap-2 text-[11.5px] text-secondary">
+            <ShieldCheck size={13} className="shrink-0 text-ok" />
+            {keyName} saved in your OS keychain — it never enters this window again.
+          </span>
+          <Button size="sm" onClick={() => void forgetKey()}>
+            Forget key
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="relative">
+            <KeyRound size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={`${keyName} — reaches the engine as env only, never argv or plaintext disk`}
+              autoComplete="off"
+              className={cn(FIELD, 'pl-8 font-mono text-[11.5px]')}
+            />
+          </div>
+          <label className="flex cursor-pointer items-center gap-2 text-[11px] text-muted">
+            <input type="checkbox" checked={storeKey} onChange={(e) => setStoreKey(e.target.checked)} />
+            Remember in the OS keychain (Keychain / Credential Manager / Secret Service)
+          </label>
+        </div>
+      )}
 
       <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--radius)] border border-warn/25 bg-warn/[0.06] p-3">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 accent-[var(--warn,#b45309)]" />
@@ -127,7 +164,7 @@ export default function RealLaunchPanel({
         <Button
           variant="primary"
           disabled={!complete || running}
-          onClick={() =>
+          onClick={() => {
             onLaunch({
               workspacePath,
               intent: intent.trim(),
@@ -137,8 +174,15 @@ export default function RealLaunchPanel({
               consentToRun: consent,
               maxIterations,
               apiKey: apiKey.trim() || undefined,
+              storeKey: apiKey.trim() !== '' ? storeKey : undefined,
             })
-          }
+            if (apiKey.trim() !== '' && storeKey) {
+              // The host saves it at launch; reflect that here and drop the
+              // plaintext from React state.
+              setApiKey('')
+              setHasStoredKey(true)
+            }
+          }}
         >
           <Play size={13} /> {running ? 'Loop running…' : 'Launch real loop'}
         </Button>
