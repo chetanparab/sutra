@@ -75,16 +75,20 @@ they're harmless when absent.
 
 ---
 
-## What happens automatically once the secrets exist
+## Enabling signing
 
-The release workflow reads each secret through the environment. When a macOS or
-Windows secret is **present**, `tauri-action` signs (and, for macOS, notarizes)
-that platform's installer; when **absent**, it emits an unsigned artifact
-instead of failing. So:
+By default the workflow builds **unsigned** installers (a tag today gives you
+four unsigned installers + the web zip on a draft Release — works with zero
+setup). Signing is opt-in in two coupled steps, both required:
 
-- **No secrets** → four unsigned installers + the web zip on a draft Release.
-- **Secrets added** → the same, but macOS and/or Windows are signed + notarized.
+1. Add the certificate secrets (the tables above).
+2. **Uncomment the `env:` block** above the `tauri-action` step in
+   `.github/workflows/release.yml`.
 
-Nothing in the workflow changes between those two states — only the presence of
-the secrets. After a tagged run, find the **draft** Release under Releases,
-review the attached artifacts, and publish.
+Both together, because an *empty* `APPLE_CERTIFICATE` / `APPLE_SIGNING_IDENTITY`
+makes the bundler attempt — and fail — a keychain import. So "no certs" has to
+mean "don't pass the signing vars at all", which is why the block is commented
+out rather than wired to always-empty secrets.
+
+After a tagged run, find the **draft** Release under Releases, review the
+attached artifacts, and publish.
