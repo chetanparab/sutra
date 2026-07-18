@@ -41,9 +41,18 @@ export interface FsTools {
  * TOCTOU/symlink-swap race). O_NOFOLLOW closes that gap at the point of
  * actual I/O, which a path check alone cannot: if the final component is a
  * symlink by the time we actually open it, this throws instead of following it.
+ *
+ * CodeQL's js/insecure-temporary-file flags the open() below. Investigated,
+ * not dismissed: its taint source is only ever this module's own tests
+ * (mkdtempSync(tmpdir()) fixtures) — the *secure*, randomly-named,
+ * exclusively-created pattern that query exists to steer people toward, not
+ * away from — never anything in real production usage. The TOCTOU/symlink
+ * risk that query cares about is exactly what O_NOFOLLOW closes here; the
+ * scanner just can't see that a flag value neutralizes it. Suppressed at this
+ * one investigated line, not the rule repo-wide.
  */
 function withNoFollowFd<T>(abs: string, flags: number, fn: (fd: number) => T): T {
-  const fd = openSync(abs, flags)
+  const fd = openSync(abs, flags) // codeql[js/insecure-temporary-file]
   try {
     return fn(fd)
   } finally {
