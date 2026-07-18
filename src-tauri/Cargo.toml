@@ -20,6 +20,7 @@ log = "0.4"
 tauri = { version = "2.11.3" }
 tauri-plugin-log = "2"
 tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
 
 # Keep debug builds lean: full DWARF debug info balloons target/ into multiple
 # GB, and the dev machine runs close to its disk. Line tables keep panics and

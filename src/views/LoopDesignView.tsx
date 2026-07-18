@@ -19,7 +19,18 @@ const GATES: { key: keyof LoopConfig['gates']; label: string; hint: string }[] =
   { key: 'onConvergence', label: 'On convergence', hint: 'Sign off before the loop exits to review' },
 ]
 
-export default function LoopDesignView({ config, onChange, onLaunch }: { config: LoopConfig; onChange: (c: LoopConfig) => void; onLaunch: () => void }) {
+export default function LoopDesignView({
+  config,
+  onChange,
+  onLaunch,
+  realPanel,
+}: {
+  config: LoopConfig
+  onChange: (c: LoopConfig) => void
+  onLaunch: () => void
+  /** Desktop shell only: the real-repo launch surface (issue #29). Null on the web. */
+  realPanel?: React.ReactNode
+}) {
   const setAutonomy = (a: Autonomy) => onChange({ ...config, autonomy: a, gates: { ...AUTONOMY_GATES[a] } })
   const setGate = (k: keyof LoopConfig['gates'], v: boolean) => onChange({ ...config, gates: { ...config.gates, [k]: v } })
 
@@ -138,6 +149,8 @@ export default function LoopDesignView({ config, onChange, onLaunch }: { config:
           </div>
         </Slab>
 
+        {realPanel}
+
         <div className="mt-6 flex items-center justify-between gap-4">
           <p className="max-w-md text-[11.5px] leading-snug text-muted">
             {config.autonomy === 'autopilot'
@@ -147,7 +160,7 @@ export default function LoopDesignView({ config, onChange, onLaunch }: { config:
                 : 'The loop pauses the moment it needs you, and not before.'}
           </p>
           <Button variant="primary" size="lg" onClick={onLaunch}>
-            <Play size={14} /> Launch loop
+            <Play size={14} /> {realPanel ? 'Launch demo loop' : 'Launch loop'}
           </Button>
         </div>
       </div>

@@ -28,6 +28,11 @@ pub struct LoopArgs {
     consent_to_run: bool,
     max_iterations: u8,
     reflect_model: Option<String>,
+    /// Session-typed API key. Reaches the engine ONLY as an env var on the
+    /// child (the frozen day-one posture: never argv, never disk, never
+    /// logged). Empty/None means "inherit the shell env" — the dev-terminal
+    /// case. The OS keychain replaces per-session typing in issue #28.
+    api_key: Option<String>,
 }
 
 /// Spawn the engine sidecar in `--events ndjson` mode and forward its stream
@@ -70,6 +75,16 @@ async fn loop_start(app: AppHandle, state: State<'_, RunningLoop>, args: LoopArg
     if let Some(reflect_model) = &args.reflect_model {
         cmd = cmd.args(["--reflect-model", reflect_model]);
     }
+    if let Some(key) = args.api_key.as_deref().filter(|k| !k.trim().is_empty()) {
+        // Env on the child only — never argv (visible in process lists), never
+        // disk, never logs. Which variable depends on the provider contract.
+        let var = match args.provider.as_str() {
+            "anthropic" => "ANTHROPIC_API_KEY",
+            "openai-compat" => "OPENAI_API_KEY",
+            other => return Err(format!("unknown provider \"{other}\"")),
+        };
+        cmd = cmd.env(var, key);
+    }
 
     let (mut rx, child) = cmd.spawn().map_err(|e| format!("engine failed to spawn: {e}"))?;
     *state.0.lock().unwrap() = Some(child);
@@ -107,6 +122,45 @@ fn loop_abort(state: State<'_, RunningLoop>) -> Result<(), String> {
     }
 }
 
+#[derive(serde::Deserialize)]
+pub struct MergeArgs {
+    workspace_path: String,
+    branch_name: String,
+    target_branch: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct MergeOutcome {
+    ok: bool,
+    message: String,
+}
+
+/// The "Merge to main" click, made real: runs the engine's merge command
+/// (fast-forward, or rebase-then-ff; conflicts and dirty worktrees come back
+/// as clean refusals). This command executes ONLY when the user clicks the
+/// merge button — the human gate is the caller, and nothing else calls it.
+#[tauri::command]
+async fn merge_branch(app: AppHandle, args: MergeArgs) -> Result<MergeOutcome, String> {
+    let output = app
+        .shell()
+        .sidecar("sutra-engine")
+        .map_err(|e| format!("sidecar not found (build it: npm run sidecar): {e}"))?
+        .args(["merge", &args.workspace_path, &args.branch_name, "--into", &args.target_branch])
+        .output()
+        .await
+        .map_err(|e| format!("engine failed to spawn: {e}"))?;
+
+    let mut message = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if !stderr.is_empty() {
+        if !message.is_empty() {
+            message.push('\n');
+        }
+        message.push_str(&stderr);
+    }
+    Ok(MergeOutcome { ok: output.status.success(), message })
+}
+
 /// The handshake: spawn the sidecar, ask it who it is, hand the webview the
 /// JSON. Proves the whole chain — bundled binary resolved by target triple,
 /// spawn permitted, stdout captured — before any real loop traffic rides it.
@@ -135,6 +189,7 @@ async fn engine_version(app: tauri::AppHandle) -> Result<String, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(RunningLoop(Mutex::new(None)))
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -146,7 +201,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![engine_version, loop_start, loop_abort])
+        .invoke_handler(tauri::generate_handler![engine_version, loop_start, loop_abort, merge_branch])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
