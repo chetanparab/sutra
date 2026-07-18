@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "engine": "tsx engine/src/cli.ts",
     "typecheck:engine": "tsc --noEmit -p engine/tsconfig.json",
-    "test": "tsx --test 'engine/**/*.test.ts'"
+    "test": "node engine/scripts/run-tests.mjs"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.2.9",
