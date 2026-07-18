@@ -57,12 +57,13 @@ export interface RealLoopArgs {
   maxIterations: number
   reflectModel?: string
   /**
-   * Session-typed API key, handed to the Rust host which sets it as an env
-   * var on the engine child only — never argv, never disk, never logged.
-   * Empty means "inherit the shell env" (the dev-terminal case). The OS
-   * keychain replaces per-session typing in issue #28.
+   * Freshly-typed API key, handed to the Rust host which sets it as an env
+   * var on the engine child only — never argv, never plaintext disk, never
+   * logged. Omitted means "use the OS keychain, else inherit the shell env".
    */
   apiKey?: string
+  /** With a fresh key: save it to the OS keychain for next time. */
+  storeKey?: boolean
 }
 
 export interface RealLoopHandlers {
@@ -110,6 +111,7 @@ export async function startRealLoop(args: RealLoopArgs, handlers: RealLoopHandle
         max_iterations: args.maxIterations,
         reflect_model: args.reflectModel ?? null,
         api_key: args.apiKey ?? null,
+        store_key: args.storeKey ?? null,
       },
     })
   } catch (err) {
@@ -142,4 +144,21 @@ export async function mergeBranch(workspacePath: string, branchName: string, tar
   return invoke<MergeClickResult>('merge_branch', {
     args: { workspace_path: workspacePath, branch_name: branchName, target_branch: targetBranch },
   })
+}
+
+/**
+ * Whether the OS keychain holds a key for this provider. The stored key
+ * itself never reaches the webview — the Rust host reads it straight into
+ * the engine child's env at launch.
+ */
+export async function keychainStatus(provider: string): Promise<boolean> {
+  if (!isDesktop()) return false
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<boolean>('keychain_status', { provider })
+}
+
+/** Forget the stored key for this provider. */
+export async function keychainDelete(provider: string): Promise<void> {
+  const { invoke } = await import('@tauri-apps/api/core')
+  await invoke('keychain_delete', { provider })
 }
