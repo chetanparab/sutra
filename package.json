@@ -10,7 +10,8 @@
     "engine": "tsx engine/src/cli.ts",
     "typecheck:engine": "tsc --noEmit -p engine/tsconfig.json",
     "test": "node engine/scripts/run-tests.mjs",
-    "eval:task1": "tsx engine/evals/run-benchmark.ts"
+    "eval:task1": "tsx engine/evals/run-benchmark.ts",
+    "eval:task2": "tsx engine/evals/run-benchmark-task2.ts"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.2.9",
