@@ -24,6 +24,11 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSy
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+// Programmatic APIs, not `npx` CLIs: on Windows `npx` is a .cmd that
+// execFileSync can't spawn (ENOENT), so calling esbuild/postject in-process is
+// the only reliable cross-platform path.
+import { build as esbuildBuild } from 'esbuild'
+import { inject as postjectInject } from 'postject'
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), '..', '..', '..')
 const outDirArg = process.argv.indexOf('--out')
@@ -53,7 +58,14 @@ try {
   // 1. Bundle the engine CLI to a single CJS file. esbuild is already a
   //    dependency via Vite — no new toolchain.
   const bundle = join(work, 'sutra-engine.cjs')
-  run('npx', ['esbuild', join(repoRoot, 'engine/src/cli.ts'), '--bundle', '--platform=node', '--format=cjs', '--target=node26', `--outfile=${bundle}`], { cwd: repoRoot })
+  await esbuildBuild({
+    entryPoints: [join(repoRoot, 'engine/src/cli.ts')],
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    target: 'node26',
+    outfile: bundle,
+  })
 
   // 2. SEA preparation blob.
   const seaConfig = join(work, 'sea-config.json')
@@ -73,7 +85,10 @@ try {
   copyFileSync(nodeBinary, out)
   chmodSync(out, 0o755)
   if (isMac) run('codesign', ['--remove-signature', out])
-  run('npx', ['postject', out, 'NODE_SEA_BLOB', blob, '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2', ...(isMac ? ['--macho-segment-name', 'NODE_SEA'] : [])], { cwd: repoRoot })
+  await postjectInject(out, 'NODE_SEA_BLOB', readFileSync(blob), {
+    sentinelFuse: 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
+    machoSegmentName: isMac ? 'NODE_SEA' : undefined,
+  })
   if (isMac) run('codesign', ['--sign', '-', out])
 
   // 5. Smoke test — the binary must run the REAL Phase 0 path, not just --help.
