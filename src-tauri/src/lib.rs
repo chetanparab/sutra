@@ -154,6 +154,19 @@ fn keychain_status(provider: String) -> Result<bool, String> {
     }
 }
 
+/// Save a key to the OS keychain from the onboarding wizard (issue #42). The
+/// webview hands the plaintext in once and drops it; from then on only
+/// loop_start reads it, host-side, into the child env.
+#[tauri::command]
+fn keychain_save(provider: String, key: String) -> Result<(), String> {
+    if key.trim().is_empty() {
+        return Err("empty key".into());
+    }
+    keychain_entry(&provider)?
+        .set_password(key.trim())
+        .map_err(|e| format!("keychain save failed: {e}"))
+}
+
 #[tauri::command]
 fn keychain_delete(provider: String) -> Result<(), String> {
     match keychain_entry(&provider)?.delete_credential() {
@@ -247,6 +260,7 @@ pub fn run() {
             loop_abort,
             merge_branch,
             keychain_status,
+            keychain_save,
             keychain_delete
         ])
         .run(tauri::generate_context!())

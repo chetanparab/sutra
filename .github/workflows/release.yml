@@ -28,29 +28,68 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "${{ github.ref_name }}" sutra-web-*.zip --title "Sutra ${{ github.ref_name }}" --generate-notes
 
-  # Native desktop installers (.dmg / .msi / .AppImage).
-  # Enable once a Tauri project (`src-tauri/`) is added. It builds on each OS and
-  # attaches the installers to the same release. Requires signing secrets:
+  # Native desktop installers (.dmg / .msi / .AppImage). Builds on each OS,
+  # bundles the engine sidecar first, and attaches the installers to the same
+  # release. Unsigned builds work today; SIGNING is gated on secrets (issue
+  # #42) — when the relevant secret is absent, tauri-action simply produces an
+  # unsigned artifact instead of failing. Add these repo secrets to sign:
   #   macOS   → APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY,
   #             APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID (notarization)
   #   Windows → WINDOWS_CERTIFICATE, WINDOWS_CERTIFICATE_PASSWORD
-  #
-  # native:
-  #   name: Native (${{ matrix.os }})
-  #   needs: web
-  #   strategy:
-  #     matrix:
-  #       os: [macos-latest, windows-latest, ubuntu-latest]
-  #   runs-on: ${{ matrix.os }}
-  #   steps:
-  #     - uses: actions/checkout@v7
-  #     - uses: actions/setup-node@v7
-  #       with: { node-version: 20, cache: npm }
-  #     - uses: dtolnay/rust-toolchain@stable
-  #     - run: npm ci
-  #     - uses: tauri-apps/tauri-action@v0
-  #       env:
-  #         GITHUB_TOKEN: ${{ github.token }}
-  #       with:
-  #         tagName: ${{ github.ref_name }}
-  #         releaseName: 'Sutra ${{ github.ref_name }}'
+  native:
+    name: Native (${{ matrix.platform }})
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm
+            os: macos-latest
+          - platform: macos-intel
+            os: macos-13
+          - platform: linux
+            os: ubuntu-22.04
+          - platform: windows
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ matrix.platform }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+      - name: Linux build deps (WebKitGTK, AppImage)
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      # The engine sidecar must exist before tauri bundles it (externalBin).
+      # build-sidecar.mjs downloads a matching official node binary per-OS.
+      - name: Build the engine sidecar
+        run: npm run sidecar
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # Present → signed+notarized; absent → unsigned artifact, no failure.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Sutra ${{ github.ref_name }}'
+          releaseDraft: true
