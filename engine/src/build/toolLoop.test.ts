@@ -109,3 +109,35 @@ test('an already-aborted signal stops the loop before any call is made', async (
     assert.equal(provider.callLog.length, 0)
   })
 })
+
+test('malformed tool calls (unknown tool, missing args) are fed back as errors the model can correct', async () => {
+  await withTempWorkspace(async (root) => {
+    writeFileSync(join(root, 'c.txt'), 'hello')
+    const provider = scriptedProvider([
+      // turn 1: an unknown tool AND an edit_file with missing arguments
+      {
+        text: '',
+        toolCalls: [
+          { id: 'm1', name: 'run_shell', arguments: { cmd: 'rm -rf /' } },
+          { id: 'm2', name: 'edit_file', arguments: { path: 'c.txt' } },
+        ],
+      },
+      // turn 2: the model reads the errors and does it properly
+      { text: '', toolCalls: [{ id: 'm3', name: 'edit_file', arguments: { path: 'c.txt', oldString: 'hello', newString: 'hello world' } }] },
+      { text: 'Corrected.' },
+    ])
+
+    const result = await runBuildLoop({ provider, model: 'test', intent: 'x', tools: createFsTools(root) })
+
+    assert.equal(result.toolCallLog[0].isError, true)
+    assert.equal(result.toolCallLog[1].isError, true)
+    assert.equal(result.toolCallLog[2].isError, false)
+    // the unknown tool was refused by name, and nothing was executed for it
+    const turn2 = provider.callLog[1]
+    const toolResults = turn2.messages.filter((m) => m.role === 'tool')
+    assert.match(toolResults[0].content, /Unknown tool: "run_shell"/)
+    assert.match(toolResults[1].content, /missing required string argument "oldString"/)
+    // and the real edit landed on disk in the end
+    assert.match(createFsTools(root).readFile('c.txt'), /hello world/)
+  })
+})
