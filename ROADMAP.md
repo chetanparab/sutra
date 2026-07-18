@@ -7,15 +7,23 @@
 > says why — not a drive-by decision inside an implementation PR. Wording fixes,
 > clarifications and marking things done are normal PRs.
 >
-> **Progress:** Phase 0 ✅ ([#21](https://github.com/chetanparab/sutra/pull/21)) ·
-> Phase 1 ✅ ([#22](https://github.com/chetanparab/sutra/pull/22)) ·
-> Phase 2 ✅ ([#23](https://github.com/chetanparab/sutra/pull/23)) ·
-> Phase 3 **code-complete** ([#30](https://github.com/chetanparab/sutra/pull/30)–[#36](https://github.com/chetanparab/sutra/pull/36):
-> Node SEA sidecar, real Merge, Tauri shell, live loop end to end, real-mode
-> surfaces, OS keychain). The `v2.0.0-beta.1` tag waits on the phase's
-> acceptance run — a signed-off real repo → real loop → real branch session in
-> the desktop app (`npm run desktop:dev`), which only a human with a real API
-> key can perform. **Phase 4 is next** after that sign-off.
+> **Progress:** Phases 0–4 are **code-complete** — every engineering
+> deliverable across all five milestones is built, tested, and merged
+> ([#21](https://github.com/chetanparab/sutra/pull/21) through
+> [#48](https://github.com/chetanparab/sutra/pull/48)). Phase 4 added error-path
+> coverage, the prompt-injection defense + hostile-repo regression, the engine
+> regression gate in CI, autopilot restricted in real mode, a 4-platform release
+> workflow, first-run onboarding, and a written security-review sign-off
+> ([`engine/SECURITY-REVIEW.md`](engine/SECURITY-REVIEW.md)).
+>
+> **Two things gate the tags, and both need a human — they cannot be done in
+> code:** (1) the **acceptance run** for `v2.0.0-beta.1` — a real repo → real
+> loop → real branch session in the desktop app (`npm run desktop:dev`) with a
+> real API key; (2) **signing certificates** (Apple Developer + Windows) as repo
+> secrets for the `v2.0.0` signed/notarized installers (issue
+> [#42](https://github.com/chetanparab/sutra/issues/42)). The release workflow
+> already produces unsigned installers today and turns signed the moment those
+> secrets exist.
 >
 > **What this document is.** [`ARCHITECTURE.md`](ARCHITECTURE.md) explains the
 > *contracts* — the seams between the loop (ours) and the intelligence (yours). This
