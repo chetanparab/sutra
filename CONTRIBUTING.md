@@ -1,8 +1,14 @@
 # Contributing to Sutra
 
-Thanks for your interest! Sutra is a concept preview, and thoughtful
-contributions — bug fixes, accessibility improvements, docs, new adapters — are
-welcome.
+Thanks for your interest! Sutra is a concept preview moving toward a real,
+BYO-agent/BYO-LLM product, and thoughtful contributions — bug fixes, accessibility
+improvements, docs, new adapters — are welcome.
+
+**Start here:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) explains the contracts (the
+seams between the loop and the intelligence you bring); [`ROADMAP.md`](./ROADMAP.md)
+is the phased engineering plan — what's being built, in what order, and why. Issues
+labeled [`good first issue`](../../issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22)
+are scoped against a specific roadmap phase.
 
 ## Ground rules
 

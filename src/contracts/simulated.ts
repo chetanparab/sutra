@@ -45,7 +45,14 @@ export function simulatedBuilder(id = 'builder-sim'): AgentAdapter {
     manifest,
     async serve(req: PhaseRequest): Promise<PhaseResult> {
       return {
-        changes: [{ path: 'services/payments/retry/executor.ts', diff: `// iteration ${req.iteration}: implement "${req.intent}"` }],
+        // `edits` (exact-match old→new strings) is the primary format — reliable for
+        // a model to author, unlike a unified diff. See ROADMAP.md, Phase 1.
+        changes: [
+          {
+            path: 'services/payments/retry/executor.ts',
+            edits: [{ oldString: '// TODO: implement', newString: `// iteration ${req.iteration}: implement "${req.intent}"` }],
+          },
+        ],
         memo: `Built against ${req.signals.length} acceptance signals; handing to Verify.`,
       }
     },
