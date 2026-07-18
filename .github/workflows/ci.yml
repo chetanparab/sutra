@@ -29,5 +29,10 @@ jobs:
         run: npm run build
       - name: Typecheck the engine (Phase 0+, see ROADMAP.md)
         run: npm run typecheck:engine
-      - name: Engine tests
+      # The engine regression gate (ROADMAP.md Phase 4, issue #41): the whole
+      # engine suite, including the eval fixtures (task1/task2) and the standing
+      # prompt-injection boundaries (engine/SECURITY.md) driven against the
+      # hostile-repo fixture. All scripted/fixture-based — zero network, zero
+      # API cost. Live-model evals stay manual by design (npm run eval:task1/2).
+      - name: Engine regression gate (tests + evals + security boundaries)
         run: npm test
