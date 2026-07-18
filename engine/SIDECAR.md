@@ -45,10 +45,22 @@ Result: ~137MB per platform. Fat for a CLI, normal for a desktop-app sidecar
 (Electron ships more), and the roadmap's freeze-approved trade: wiring over
 rewrites.
 
+## Platform coverage
+
+All four desktop targets build from `build-sidecar.mjs`, each on its own OS
+(SEA injects into a same-platform donor binary — no cross-compilation):
+
+- **macOS** (arm64 + x64): ad-hoc `codesign` for local dev; real
+  signing/notarization is the release workflow's job with a user cert.
+- **Linux** (x64): plain inject, no signing step.
+- **Windows** (x64): `.exe` suffix, no `codesign`/Mach-O segment; the donor is
+  the official `win-x64` `.zip` (node.exe at the archive root), unzipped with
+  PowerShell. `signtool` signing is the release workflow's job with a user cert.
+
+The release matrix (`.github/workflows/release.yml`) runs this per-OS before
+`tauri build` so the sidecar exists for `externalBin` to bundle.
+
 ## Still open (deliberately)
 
-- **Windows**: no codesign step, `.exe` suffix, `signtool` — wired in Phase 4
-  when a Windows build machine exists. The script refuses on `win32` with this
-  pointer rather than pretending.
-- **Cross-compilation**: none. Each platform's binary builds on that platform
-  (CI matrix later). SEA injects into a same-platform donor binary by design.
+- **Cross-compilation**: none, by design — each platform builds its own binary
+  on that platform's runner.

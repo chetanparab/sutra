@@ -8,6 +8,7 @@ import { THEMES, initialTheme, type ThemeId } from './components/ThemeSwitcher'
 import TopChrome from './components/TopChrome'
 import { Button, cn } from './components/ui'
 import { isDesktop } from './desktop/engine'
+import Onboarding, { ONBOARDING_SEEN_KEY } from './desktop/Onboarding'
 import type { RealLoopArgs } from './desktop/realLoop'
 import { AUTONOMY_GATES, fmtElapsed, useLoop } from './loop/useLoop'
 import { useRealLoop } from './loop/useRealLoop'
@@ -50,6 +51,16 @@ export default function App() {
   const [contextOpen, setContextOpen] = useState(false)
   const [theme, setTheme] = useState<ThemeId>(() => initialTheme('analogy'))
   const [paletteOpen, setPaletteOpen] = useState(false)
+  // First-run onboarding: desktop shell only, once (dismissal persists to
+  // localStorage). The web demo never shows it.
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    if (!isDesktop()) return false
+    try {
+      return localStorage.getItem(ONBOARDING_SEEN_KEY) !== '1'
+    } catch {
+      return true
+    }
+  })
   // The IDE's floating chrome, 3-column run view and code surface need width.
   // Below that, show a graceful notice instead of a broken layout.
   const [tooNarrow, setTooNarrow] = useState(false)
@@ -404,6 +415,7 @@ export default function App() {
       />
       <ContextDrawer open={contextOpen} onClose={() => setContextOpen(false)} />
       <Conductor open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
+      {showOnboarding && <Onboarding onClose={() => setShowOnboarding(false)} />}
     </div>
   )
 }

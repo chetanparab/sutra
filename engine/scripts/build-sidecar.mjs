@@ -38,11 +38,11 @@ const TRIPLES = {
 const platformKey = `${process.platform}-${process.arch}`
 const triple = TRIPLES[platformKey]
 if (!triple) throw new Error(`No rust target triple mapping for ${platformKey}.`)
-if (process.platform === 'win32') {
-  // The blob/inject steps differ on Windows (no codesign, .exe, signtool in
-  // Phase 4). Wire it when a Windows build machine exists — see SIDECAR.md.
-  throw new Error('Windows sidecar builds are a Phase 4 task — see engine/SIDECAR.md.')
-}
+
+const isWindows = process.platform === 'win32'
+const isMac = process.platform === 'darwin'
+// Tauri's externalBin appends the triple and, on Windows, .exe.
+const outExt = isWindows ? '.exe' : ''
 
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: 'inherit', ...opts })
 const work = mkdtempSync(join(tmpdir(), 'sutra-sidecar-'))
@@ -64,13 +64,16 @@ try {
   const nodeBinary = await resolveSelfContainedNode(work)
 
   // 4. Copy, strip signature (macOS), inject, re-sign ad hoc.
-  const out = join(outDir, `sutra-engine-${triple}`)
+  //    Windows: no codesign, `.exe` suffix, and postject omits the Mach-O
+  //    segment flag (that's a macOS-only concept). Real signing is the CI's
+  //    job with a user cert (issue #42); the local build stays unsigned.
+  const out = join(outDir, `sutra-engine-${triple}${outExt}`)
   rmSync(out, { force: true })
   copyFileSync(nodeBinary, out)
   chmodSync(out, 0o755)
-  if (process.platform === 'darwin') run('codesign', ['--remove-signature', out])
-  run('npx', ['postject', out, 'NODE_SEA_BLOB', blob, '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2', ...(process.platform === 'darwin' ? ['--macho-segment-name', 'NODE_SEA'] : [])], { cwd: repoRoot })
-  if (process.platform === 'darwin') run('codesign', ['--sign', '-', out])
+  if (isMac) run('codesign', ['--remove-signature', out])
+  run('npx', ['postject', out, 'NODE_SEA_BLOB', blob, '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2', ...(isMac ? ['--macho-segment-name', 'NODE_SEA'] : [])], { cwd: repoRoot })
+  if (isMac) run('codesign', ['--sign', '-', out])
 
   // 5. Smoke test — the binary must run the REAL Phase 0 path, not just --help.
   const smokeRepo = join(work, 'smoke-repo')
@@ -97,24 +100,35 @@ async function resolveSelfContainedNode(work) {
   }
 
   const version = process.version // match the dev/CI node
-  const distName = `node-${version}-${process.platform}-${process.arch}`
+  // Windows dist names use "win", not "win32", and ship as .zip with node.exe
+  // at the archive root; posix ships .tar.xz with the binary under bin/.
+  const distOs = isWindows ? 'win' : process.platform
+  const distName = `node-${version}-${distOs}-${process.arch}`
   const cacheDir = join(outDir, '.node-cache')
-  const cached = join(cacheDir, `${distName}-bin`)
+  const cached = join(cacheDir, `${distName}-bin${outExt}`)
   if (existsSync(cached)) {
     assertSelfContained(cached)
     return cached
   }
 
   mkdirSync(cacheDir, { recursive: true })
-  const url = `https://nodejs.org/dist/${version}/${distName}.tar.xz`
+  const archiveExt = isWindows ? 'zip' : 'tar.xz'
+  const url = `https://nodejs.org/dist/${version}/${distName}.${archiveExt}`
   console.log(`Downloading official node binary: ${url}`)
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Download failed (${res.status}) for ${url}. Set SUTRA_SEA_NODE to a self-contained node binary instead.`)
-  const tarball = join(work, 'node-dist.tar.xz')
-  writeFileSync(tarball, Buffer.from(await res.arrayBuffer()))
-  run('tar', ['-xf', tarball, '-C', work, `${distName}/bin/node`])
-  copyFileSync(join(work, distName, 'bin', 'node'), cached)
-  chmodSync(cached, 0o755)
+  const archive = join(work, `node-dist.${archiveExt}`)
+  writeFileSync(archive, Buffer.from(await res.arrayBuffer()))
+
+  if (isWindows) {
+    // PowerShell's Expand-Archive is always present on windows-latest runners.
+    run('powershell', ['-NoProfile', '-Command', `Expand-Archive -Path '${archive}' -DestinationPath '${work}' -Force`])
+    copyFileSync(join(work, distName, 'node.exe'), cached)
+  } else {
+    run('tar', ['-xf', archive, '-C', work, `${distName}/bin/node`])
+    copyFileSync(join(work, distName, 'bin', 'node'), cached)
+    chmodSync(cached, 0o755)
+  }
   assertSelfContained(cached)
   return cached
 }

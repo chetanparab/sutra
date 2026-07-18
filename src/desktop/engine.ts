@@ -16,6 +16,17 @@ export function isDesktop(): boolean {
 }
 
 /**
+ * Save an API key into the OS keychain (onboarding, issue #42). The plaintext
+ * crosses to the Rust host once and is dropped; afterwards only the host reads
+ * it, into the engine child's env. Throws on the web (no keychain there).
+ */
+export async function keychainSave(provider: string, key: string): Promise<void> {
+  if (!isDesktop()) throw new Error('The keychain is only available in the desktop app.')
+  const { invoke } = await import('@tauri-apps/api/core')
+  await invoke('keychain_save', { provider, key })
+}
+
+/**
  * The sidecar handshake, webview edition: asks the Rust host to spawn the
  * engine binary and report who it is. Null on the web, null on any failure —
  * callers render nothing rather than an error state, because in this phase
