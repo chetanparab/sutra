@@ -42,3 +42,4 @@ Thumbs.db
 # engine eval fixtures are generated at run time (real nested git repos) — never
 # committed, see engine/evals/fixtures/makeToyRepo.ts
 engine/evals/fixtures/*/
+dist-sidecar/
