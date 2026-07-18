@@ -13,20 +13,30 @@ import { keychainDelete, keychainStatus, pickWorkspaceFolder, type RealLoopArgs 
 const FIELD =
   'w-full rounded-[var(--radius)] border border-primary/12 bg-primary/[0.03] px-3 py-2 text-[12.5px] text-primary outline-none transition-colors placeholder:text-faint focus:border-accent/50'
 
+const CUSTOM = '__custom__'
+
 const PROVIDERS = [
   {
     id: 'anthropic',
     label: 'Anthropic',
     keyName: 'ANTHROPIC_API_KEY',
     defaultModel: 'claude-sonnet-5',
-    models: ['claude-sonnet-5', 'claude-opus-4-8', 'claude-haiku-4-5-20251001'],
+    models: [
+      { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 — balanced (recommended)' },
+      { id: 'claude-opus-4-8', label: 'Claude Opus 4.8 — most capable' },
+      { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 — fastest' },
+    ],
   },
   {
     id: 'openai-compat',
     label: 'OpenAI-compatible',
     keyName: 'OPENAI_API_KEY',
-    defaultModel: '',
-    models: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+    defaultModel: 'gpt-4o',
+    models: [
+      { id: 'gpt-4o', label: 'GPT-4o' },
+      { id: 'gpt-4o-mini', label: 'GPT-4o mini' },
+      { id: 'o3-mini', label: 'o3-mini' },
+    ],
   },
 ]
 
@@ -71,6 +81,11 @@ export default function RealLaunchPanel({
   const complete = workspacePath !== '' && intent.trim() !== '' && model.trim() !== '' && verifyCmd.trim() !== '' && consent
   const activeProvider = PROVIDERS.find((p) => p.id === provider)
   const keyName = activeProvider?.keyName ?? 'API key'
+
+  // The dropdown shows a fixed list; anything not on it is a custom model, and
+  // the select falls to "Custom…" which reveals a free-text box (OpenAI-compat
+  // endpoints and future models need that escape hatch).
+  const isCustomModel = !(activeProvider?.models ?? []).some((m) => m.id === model)
 
   // Switching provider swaps in that provider's default model, so the field is
   // never left pointing at a model the new provider doesn't have.
@@ -122,19 +137,29 @@ export default function RealLaunchPanel({
             </option>
           ))}
         </select>
+        <select
+          value={isCustomModel ? CUSTOM : model}
+          onChange={(e) => setModel(e.target.value === CUSTOM ? '' : e.target.value)}
+          className={FIELD}
+        >
+          {(activeProvider?.models ?? []).map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+          <option value={CUSTOM}>Custom model…</option>
+        </select>
+      </div>
+
+      {isCustomModel && (
         <input
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          placeholder="Model id"
-          list="sutra-models"
+          placeholder="Exact model id (e.g. from your OpenAI-compatible endpoint)"
+          autoFocus
           className={cn(FIELD, 'font-mono text-[11.5px]')}
         />
-        <datalist id="sutra-models">
-          {(activeProvider?.models ?? []).map((m) => (
-            <option key={m} value={m} />
-          ))}
-        </datalist>
-      </div>
+      )}
 
       <input
         value={verifyCmd}
