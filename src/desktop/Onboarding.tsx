@@ -8,7 +8,7 @@
  * It intentionally does NOT gate the app — a user can skip straight to the demo
  * or the launch panel. It's a welcome, not a paywall.
  */
-import { ArrowRight, Check, FolderGit2, KeyRound, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, FolderGit2, KeyRound, Sparkles, X } from 'lucide-react'
 import { useState } from 'react'
 import { Button, cn } from '../components/ui'
 import { keychainSave } from './engine'
@@ -23,20 +23,27 @@ const PROVIDERS = [
 
 export const ONBOARDING_SEEN_KEY = 'sutra.onboarding.seen.v1'
 
-export default function Onboarding({ onClose }: { onClose: () => void }) {
+export default function Onboarding({ onClose, onStartBuilding }: { onClose: () => void; onStartBuilding: () => void }) {
   const [step, setStep] = useState(0)
   const [provider, setProvider] = useState('anthropic')
   const [apiKey, setApiKey] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const dismiss = () => {
+  const markSeen = () => {
     try {
       localStorage.setItem(ONBOARDING_SEEN_KEY, '1')
     } catch {
       /* private mode / storage disabled — worst case it shows again */
     }
+  }
+  const dismiss = () => {
+    markSeen()
     onClose()
+  }
+  const startBuilding = () => {
+    markSeen()
+    onStartBuilding()
   }
 
   const keyName = PROVIDERS.find((p) => p.id === provider)?.keyName ?? 'API key'
@@ -132,12 +139,17 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
             {saveError && <p className="mt-2 text-[11px] text-warn">{saveError}</p>}
 
             <div className="mt-6 flex items-center justify-between">
-              <button onClick={() => setStep(2)} className="text-[12px] text-muted transition-colors hover:text-secondary">
-                Skip for now
+              <button onClick={() => setStep(0)} className="flex items-center gap-1 text-[12px] text-muted transition-colors hover:text-secondary">
+                <ArrowLeft size={12} /> Back
               </button>
-              <Button variant="primary" disabled={saving} onClick={() => void saveKeyAndAdvance()}>
-                {saving ? 'Saving…' : apiKey.trim() ? 'Save key' : 'Continue'} <ArrowRight size={13} />
-              </Button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setStep(2)} className="text-[12px] text-muted transition-colors hover:text-secondary">
+                  Skip for now
+                </button>
+                <Button variant="primary" disabled={saving} onClick={() => void saveKeyAndAdvance()}>
+                  {saving ? 'Saving…' : apiKey.trim() ? 'Save key' : 'Continue'} <ArrowRight size={13} />
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -164,9 +176,12 @@ export default function Onboarding({ onClose }: { onClose: () => void }) {
                 </li>
               ))}
             </ul>
-            <div className="mt-6 flex justify-end">
-              <Button variant="primary" onClick={dismiss}>
-                Start building <ArrowRight size={13} />
+            <div className="mt-6 flex items-center justify-between">
+              <button onClick={() => setStep(1)} className="flex items-center gap-1 text-[12px] text-muted transition-colors hover:text-secondary">
+                <ArrowLeft size={12} /> Back
+              </button>
+              <Button variant="primary" onClick={startBuilding}>
+                Open the real-repo panel <ArrowRight size={13} />
               </Button>
             </div>
           </div>

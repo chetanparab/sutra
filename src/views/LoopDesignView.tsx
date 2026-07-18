@@ -38,16 +38,29 @@ export default function LoopDesignView({
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-5xl px-6 pb-28 pt-20">
         <div className="anim-rise">
-          <Label>Design the loop</Label>
+          <Label>{realPanel ? 'Run a real repository' : 'Design the loop'}</Label>
           <h1 className="serif-hero balance mt-3.5 font-display text-[clamp(26px,3.4vw,34px)] font-semibold leading-[1.05] tracking-[-0.03em]">
-            Shape the loop, then <span className="italic font-medium text-accent">set it running</span>
+            {realPanel ? (
+              <>
+                Point the loop at a <span className="italic font-medium text-accent">real repo</span>
+              </>
+            ) : (
+              <>
+                Shape the loop, then <span className="italic font-medium text-accent">set it running</span>
+              </>
+            )}
           </h1>
           <p className="pretty mt-2.5 max-w-[60ch] text-[13.5px] leading-[1.6] text-secondary">
-            Work runs as a loop, not a one-shot. Agents cycle the four phases until the acceptance signals converge — you engineer its autonomy, its human gates and its budget.
+            {realPanel
+              ? 'Real edits on a shadow branch, your test command actually run, a real branch at the end. Fill this in and launch — the scripted demo below is optional.'
+              : 'Work runs as a loop, not a one-shot. Agents cycle the four phases until the acceptance signals converge — you engineer its autonomy, its human gates and its budget.'}
           </p>
         </div>
 
-        <Slab className="anim-rise mt-6" bodyClassName="py-5">
+        {/* Desktop: the real-repo launch panel is the primary surface, at the top. */}
+        {realPanel}
+
+        <Slab className={cn('anim-rise', realPanel ? 'mt-8' : 'mt-6')} bodyClassName="py-5">
           <div className="flex items-center">
             {PHASES.map((p, i) => {
               const Icon = PHASE_ICON[i]
@@ -148,8 +161,6 @@ export default function LoopDesignView({
             <Stepper value={config.maxIterations} min={1} max={5} onChange={(v) => onChange({ ...config, maxIterations: v })} />
           </div>
         </Slab>
-
-        {realPanel}
 
         <div className="mt-6 flex items-center justify-between gap-4">
           <p className="max-w-md text-[11.5px] leading-snug text-muted">
