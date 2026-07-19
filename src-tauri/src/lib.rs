@@ -36,6 +36,12 @@ pub struct LoopArgs {
     /// When a fresh key is supplied: save it to the OS keychain for next
     /// time. The UI's "remember" checkbox.
     store_key: Option<bool>,
+    /// Phase 5 (#10): "container" runs Verify in an isolated Docker container.
+    verify_mode: Option<String>,
+    verify_image: Option<String>,
+    verify_allow_network: Option<bool>,
+    /// Phase 5 (#9): MCP servers ("command arg1 arg2") whose tools Build may use.
+    mcp_servers: Option<Vec<String>>,
 }
 
 /// Spawn the engine sidecar in `--events ndjson` mode and forward its stream
@@ -71,6 +77,24 @@ async fn loop_start(app: AppHandle, state: State<'_, RunningLoop>, args: LoopArg
         ]);
     if let Some(reflect_model) = &args.reflect_model {
         cmd = cmd.args(["--reflect-model", reflect_model]);
+    }
+    // Phase 5 (#10): isolated Verify. Only pass the flag for container mode so
+    // the default local path is unchanged.
+    if args.verify_mode.as_deref() == Some("container") {
+        cmd = cmd.args(["--verify-mode", "container"]);
+        if let Some(image) = args.verify_image.as_deref().filter(|s| !s.trim().is_empty()) {
+            cmd = cmd.args(["--verify-image", image]);
+        }
+        if args.verify_allow_network == Some(true) {
+            cmd = cmd.args(["--verify-network", "true"]);
+        }
+    }
+    // Phase 5 (#9): the user's MCP servers, joined with ';;' the CLI splits on.
+    if let Some(servers) = args.mcp_servers.as_ref().filter(|v| !v.is_empty()) {
+        let spec = servers.iter().map(|s| s.trim()).filter(|s| !s.is_empty()).collect::<Vec<_>>().join(";;");
+        if !spec.is_empty() {
+            cmd = cmd.args(["--mcp-server", &spec]);
+        }
     }
     // Key resolution: freshly typed > OS keychain > inherited shell env.
     // Env on the child only — never argv (visible in process lists), never

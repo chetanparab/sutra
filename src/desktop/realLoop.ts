@@ -65,6 +65,14 @@ export interface RealLoopArgs {
   apiKey?: string
   /** With a fresh key: save it to the OS keychain for next time. */
   storeKey?: boolean
+  /** Phase 5 (#10): 'container' runs Verify in an isolated Docker container. Defaults to 'local'. */
+  verifyMode?: 'local' | 'container'
+  /** Container image with the repo's toolchain (container mode only). */
+  verifyImage?: string
+  /** Allow the verify command network access in container mode. Off by default. */
+  verifyAllowNetwork?: boolean
+  /** Phase 5 (#9): MCP servers whose tools the Build model may use. Each: "command arg1 arg2". */
+  mcpServers?: string[]
 }
 
 export interface RealLoopHandlers {
@@ -116,6 +124,10 @@ export async function startRealLoop(args: RealLoopArgs, handlers: RealLoopHandle
         reflect_model: args.reflectModel ?? null,
         api_key: args.apiKey ?? null,
         store_key: args.storeKey ?? null,
+        verify_mode: args.verifyMode ?? null,
+        verify_image: args.verifyImage ?? null,
+        verify_allow_network: args.verifyAllowNetwork ?? null,
+        mcp_servers: args.mcpServers ?? null,
       },
     })
   } catch (err) {
