@@ -1,6 +1,6 @@
 [package]
 name = "sutra"
-version = "2.0.0-beta.2"
+version = "2.0.0-beta.3"
 description = "Sutra — the loop-engineering desktop shell (ROADMAP.md Phase 3)"
 authors = ["Chetan Parab"]
 edition = "2021"
