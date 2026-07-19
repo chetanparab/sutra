@@ -1,6 +1,6 @@
 import { Activity, CalendarClock, Command, Cpu, Home } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { fetchEngineVersion, type EngineInfo } from '../desktop/engine'
+import { fetchEngineVersion, isDesktop, type EngineInfo } from '../desktop/engine'
 import { APP_NAME } from '../scenario'
 import type { Mode } from '../types'
 import ThemeSwitcher, { type ThemeId } from './ThemeSwitcher'
@@ -102,9 +102,15 @@ export default function TopChrome({
       </div>
 
       <div className="absolute right-6 top-5 z-30 flex items-center gap-4 text-[11.5px] text-muted">
-        <span className="flex items-center gap-1.5 text-ok">
-          <span className="h-1.5 w-1.5 rounded-full bg-ok soft-pulse" /> live
-        </span>
+        {isDesktop() ? (
+          <span className="flex items-center gap-1.5 text-ok">
+            <span className="h-1.5 w-1.5 rounded-full bg-ok soft-pulse" /> live
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-warn" title="This browser page is a demo — download the desktop app to run your own repo for real">
+            <span className="h-1.5 w-1.5 rounded-full bg-warn" /> demo
+          </span>
+        )}
         <EngineChip />
         <span className="hidden items-center gap-1.5 sm:flex">
           <Activity size={12} className="text-accent" /> p99 <span className="font-mono tnum text-secondary">{p99}ms</span>
