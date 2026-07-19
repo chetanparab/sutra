@@ -1,13 +1,21 @@
 # Architecture — from simulation to real
 
-> **Status.** Today Sutra is a high-fidelity **concept demo**. The loop, the agents
-> and the mission are a scripted scenario (`src/scenario.ts`, `src/loop/script.ts`).
-> The **one thing that is already real** is verification: the Verify phase compiles
-> QuickJS to WebAssembly and *executes* the change, measuring the acceptance signals
-> (`src/wasm/verify.ts`). This document is the honest map from that demo to a real
-> system — and the contract that lets **you bring your own agents and your own
-> models**. It is deliberately written for contributors: everything here is open to
-> proposal and change.
+> **Status (updated for v2.0.0-beta).** The real system described below is
+> **built and shipping.** The headless engine (`engine/`) drives a real
+> Sense → Build → Verify → Reflect → Merge loop: BYO-LLM (Anthropic /
+> OpenAI-compatible), a generic tool-use Build loop, shadow-branch git, a
+> workspace-root fs guard, real command execution behind explicit consent
+> (locally or in an isolated container), BYO-agent MCP tools, and a human-gated
+> merge — all provider-agnostic and covered by a network-free test suite. The
+> desktop app (`src-tauri/`, a Tauri shell) manages the engine as a sidecar.
+>
+> The **in-browser experience remains a scripted demo** by necessity — a browser
+> can't run Node's fs/git/child_process — so `src/scenario.ts` + `src/loop/script.ts`
+> drive one built-in mission, and its Verify phase runs the change in a
+> QuickJS-on-WebAssembly sandbox (`src/wasm/verify.ts`) for a real, measured
+> result. This document maps how the two fit together and the contracts that let
+> **you bring your own agents and your own models**. It is written for
+> contributors: everything here is open to proposal and change.
 
 ## The one principle everything follows
 
