@@ -7,23 +7,29 @@
 > says why — not a drive-by decision inside an implementation PR. Wording fixes,
 > clarifications and marking things done are normal PRs.
 >
-> **Progress:** Phases 0–4 are **code-complete** — every engineering
-> deliverable across all five milestones is built, tested, and merged
-> ([#21](https://github.com/chetanparab/sutra/pull/21) through
-> [#48](https://github.com/chetanparab/sutra/pull/48)). Phase 4 added error-path
-> coverage, the prompt-injection defense + hostile-repo regression, the engine
-> regression gate in CI, autopilot restricted in real mode, a 4-platform release
-> workflow, first-run onboarding, and a written security-review sign-off
-> ([`engine/SECURITY-REVIEW.md`](engine/SECURITY-REVIEW.md)).
+> **Progress:** Phases 0–4 (the frozen v2.0 plan) **and** Phase 5 (the post-v2.0
+> features, milestone below) are **complete** — every engineering deliverable is
+> built, tested, and merged. The desktop **acceptance run passed** (a real repo
+> went through a real loop to a real fast-forward merge), and
+> **`v2.0.0-beta.2` is published** with macOS + Linux installers. Phase 5 added
+> the isolated-container Verify option (#10) and BYO-agent MCP tools (#9), both
+> wired through to the desktop UI.
 >
-> **Two things gate the tags, and both need a human — they cannot be done in
-> code:** (1) the **acceptance run** for `v2.0.0-beta.1` — a real repo → real
-> loop → real branch session in the desktop app (`npm run desktop:dev`) with a
-> real API key; (2) **signing certificates** (Apple Developer + Windows) as repo
-> secrets for the `v2.0.0` signed/notarized installers (issue
-> [#42](https://github.com/chetanparab/sutra/issues/42)). The release workflow
-> already produces unsigned installers today and turns signed the moment those
-> secrets exist.
+> **What's left, and why it's not in code:**
+> - **`v2.0.0` (final) is deliberately not tagged yet.** The frozen acceptance
+>   for v2.0.0 is *signed + notarized* installers, so a clean final tag waits on
+>   **signing certificates** (Apple Developer + Windows) as repo secrets (issue
+>   [#42](https://github.com/chetanparab/sutra/issues/42), [`RELEASING.md`](RELEASING.md)).
+>   Cutting an unsigned "final" would ship Gatekeeper/SmartScreen warnings to
+>   users — beta.2 is the honest current release until the certs exist.
+> - **Windows installers** don't build yet: the Node SEA sidecar `.exe` exits
+>   before running (a Windows-only postject/Authenticode issue that needs a
+>   Windows machine to diagnose). Non-blocking in the release matrix; macOS +
+>   Linux ship.
+>
+> Everything a human can't hand off is done. The next moves are: use beta.2 on
+> real work and let real needs drive features; add certs → signed `v2.0.0`; fix
+> Windows SEA on a Windows box.
 >
 > **What this document is.** [`ARCHITECTURE.md`](ARCHITECTURE.md) explains the
 > *contracts* — the seams between the loop (ours) and the intelligence (yours). This
