@@ -5,15 +5,44 @@
  * checkbox — the CLI's --allow-run flag as a surface a human reads. Renders
  * only inside the desktop shell; the web demo never sees it.
  */
-import { Boxes, ChevronDown, FolderOpen, KeyRound, Play, Plug, ShieldCheck, TriangleAlert } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Button, Label, Slab, cn } from '../components/ui'
+import { Boxes, ChevronDown, Cpu, FolderGit2, FolderOpen, KeyRound, Play, Plug, ShieldCheck, Sparkles, Terminal, TriangleAlert } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Button, Toggle, cn } from '../components/ui'
 import { keychainDelete, keychainStatus, pickWorkspaceFolder, type RealLoopArgs } from '../desktop/realLoop'
 
 const FIELD =
-  'w-full rounded-[var(--radius)] border border-primary/12 bg-primary/[0.03] px-3 py-2 text-[12.5px] text-primary outline-none transition-colors placeholder:text-faint focus:border-accent/50'
+  'w-full rounded-[var(--radius)] border border-primary/[0.14] bg-primary/[0.02] px-3.5 py-2.5 text-[13px] text-primary outline-none transition-all placeholder:text-faint hover:border-primary/25 focus:border-accent/55 focus:bg-primary/[0.04] focus:ring-2 focus:ring-accent/15'
 
 const CUSTOM = '__custom__'
+
+/** A labelled field group — the unit of the panel's hierarchy. */
+function Field({ icon, label, hint, children }: { icon?: ReactNode; label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="flex items-center gap-1.5 text-[11px] font-medium tracking-[0.01em] text-secondary">
+          {icon}
+          {label}
+        </span>
+        {hint && <span className="text-[10.5px] text-faint">{hint}</span>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/** A label↔toggle row — the panel's boolean control, replacing raw checkboxes. */
+function ToggleRow({ checked, onChange, title, desc }: { checked: boolean; onChange: (v: boolean) => void; title: ReactNode; desc?: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0 pt-px">
+        <div className="text-[12.5px] font-medium text-primary">{title}</div>
+        {desc && <div className="mt-0.5 text-[11.5px] leading-relaxed text-muted">{desc}</div>}
+      </div>
+      <Toggle checked={checked} onChange={onChange} />
+    </div>
+  )
+}
 
 const PROVIDERS = [
   {
@@ -105,216 +134,218 @@ export default function RealLaunchPanel({
     if (picked) setWorkspacePath(picked)
   }
 
+  const doLaunch = () => {
+    onLaunch({
+      workspacePath,
+      intent: intent.trim(),
+      provider,
+      model: model.trim(),
+      verifyCmd: verifyCmd.trim(),
+      consentToRun: consent,
+      maxIterations,
+      apiKey: apiKey.trim() || undefined,
+      storeKey: apiKey.trim() !== '' ? storeKey : undefined,
+      verifyMode: useContainer ? 'container' : 'local',
+      verifyImage: useContainer ? verifyImage.trim() || undefined : undefined,
+      verifyAllowNetwork: useContainer ? allowNetwork : undefined,
+      mcpServers: mcpText
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean),
+    })
+    if (apiKey.trim() !== '' && storeKey) {
+      // The host saves it at launch; reflect that here and drop the plaintext.
+      setApiKey('')
+      setHasStoredKey(true)
+    }
+  }
+
   return (
-    <Slab
-      className="mt-4"
-      title={
-        <span className="flex items-center gap-1.5">
-          <Play size={12} className="text-muted" /> <Label tick={false}>Real repo</Label>
-        </span>
-      }
-      bodyClassName="space-y-3.5"
-    >
-      <p className="text-[11.5px] leading-snug text-muted">
-        Point the loop at a real repository. Real edits on a shadow branch, your test command actually executed, a real
-        branch at the end — your branch is never touched until you merge.
-      </p>
-
-      <div className="flex items-center gap-2">
-        <button onClick={pick} className={cn(FIELD, 'flex items-center gap-2 text-left', workspacePath === '' && 'text-faint')}>
-          <FolderOpen size={13} className="shrink-0 text-accent" />
-          <span className="truncate font-mono text-[11.5px]">{workspacePath || 'Choose the repo the loop may touch…'}</span>
-        </button>
-      </div>
-
-      <textarea
-        value={intent}
-        onChange={(e) => setIntent(e.target.value)}
-        rows={2}
-        placeholder="Intent — what should change, and how you'll know it worked"
-        className={cn(FIELD, 'resize-none leading-relaxed')}
-      />
-
-      <div className="grid grid-cols-2 gap-2.5">
-        <select value={provider} onChange={(e) => onProviderChange(e.target.value)} className={FIELD}>
-          {PROVIDERS.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={isCustomModel ? CUSTOM : model}
-          onChange={(e) => setModel(e.target.value === CUSTOM ? '' : e.target.value)}
-          className={FIELD}
-        >
-          {(activeProvider?.models ?? []).map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label}
-            </option>
-          ))}
-          <option value={CUSTOM}>Custom model…</option>
-        </select>
-      </div>
-
-      {isCustomModel && (
-        <input
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder="Exact model id (e.g. from your OpenAI-compatible endpoint)"
-          autoFocus
-          className={cn(FIELD, 'font-mono text-[11.5px]')}
-        />
-      )}
-
-      <input
-        value={verifyCmd}
-        onChange={(e) => setVerifyCmd(e.target.value)}
-        placeholder="Verify command — yours, e.g. npm test"
-        className={cn(FIELD, 'font-mono text-[11.5px]')}
-      />
-
-      {hasStoredKey ? (
-        <div className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-primary/12 bg-primary/[0.03] px-3 py-2">
-          <span className="flex min-w-0 items-center gap-2 text-[11.5px] text-secondary">
-            <ShieldCheck size={13} className="shrink-0 text-ok" />
-            {keyName} saved in your OS keychain — it never enters this window again.
-          </span>
-          <Button size="sm" onClick={() => void forgetKey()}>
-            Forget key
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <div className="relative">
-            <KeyRound size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={`${keyName} — reaches the engine as env only, never argv or plaintext disk`}
-              autoComplete="off"
-              className={cn(FIELD, 'pl-8 font-mono text-[11.5px]')}
-            />
-          </div>
-          <label className="flex cursor-pointer items-center gap-2 text-[11px] text-muted">
-            <input type="checkbox" checked={storeKey} onChange={(e) => setStoreKey(e.target.checked)} />
-            Remember in the OS keychain (Keychain / Credential Manager / Secret Service)
-          </label>
-        </div>
-      )}
-
-      <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--radius)] border border-warn/25 bg-warn/[0.06] p-3">
-        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 accent-[var(--warn,#b45309)]" />
-        <span className="text-[11.5px] leading-snug text-secondary">
-          <span className="font-medium text-primary">Run my verify command on this machine.</span>{' '}
-          {useContainer
-            ? 'It runs inside an isolated container (below), not directly on your host — but it is still your code executing.'
-            : 'Verification executes the command above — and code the loop just modified. Only proceed on a repo you trust.'}
-        </span>
-      </label>
-
-      {/* Phase 5 advanced options — isolated Verify (#10) + BYO-agent MCP (#9) */}
-      <div className="rounded-[var(--radius)] border border-primary/10">
-        <button
-          onClick={() => setShowAdvanced((v) => !v)}
-          className="flex w-full items-center justify-between px-3 py-2 text-[11.5px] text-secondary transition-colors hover:text-primary"
-        >
-          <span className="flex items-center gap-1.5">
-            <Boxes size={13} className="text-muted" /> Advanced — isolation & your own tools
-          </span>
-          <ChevronDown size={14} className={cn('text-muted transition-transform', showAdvanced && 'rotate-180')} />
-        </button>
-        {showAdvanced && (
-          <div className="space-y-3 border-t border-primary/10 p-3">
-            <label className="flex cursor-pointer items-start gap-2.5">
-              <input type="checkbox" checked={useContainer} onChange={(e) => setUseContainer(e.target.checked)} className="mt-0.5" />
-              <span className="text-[11.5px] leading-snug text-secondary">
-                <span className="font-medium text-primary">Isolate Verify in a container.</span> Runs your test command in a
-                throwaway Docker container — only this folder mounted, network off — instead of on your host. Needs Docker
-                running; falls back to local if it isn't.
+    <section className="surface overflow-hidden">
+      <div className="space-y-5 p-5">
+        {/* Repository */}
+        <Field icon={<FolderGit2 size={12} className="text-muted" />} label="Repository">
+          {workspacePath === '' ? (
+            <button
+              onClick={pick}
+              className="flex w-full items-center justify-center gap-2 rounded-[var(--radius)] border border-dashed border-primary/25 bg-primary/[0.02] px-3.5 py-3.5 text-[12.5px] text-muted transition-all hover:border-accent/45 hover:bg-accent/[0.03] hover:text-secondary"
+            >
+              <FolderOpen size={14} className="text-accent" /> Choose the folder the loop may touch
+            </button>
+          ) : (
+            <button
+              onClick={pick}
+              className="group flex w-full items-center gap-3 rounded-[var(--radius)] border border-primary/[0.14] bg-primary/[0.02] px-3.5 py-2.5 text-left transition-all hover:border-accent/40"
+            >
+              <FolderGit2 size={15} className="shrink-0 text-accent" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-medium text-primary">{basename(workspacePath)}</span>
+                <span className="block truncate font-mono text-[10.5px] text-faint">{workspacePath}</span>
               </span>
-            </label>
-            {useContainer && (
-              <div className="ml-6 space-y-2">
-                <input
-                  value={verifyImage}
-                  onChange={(e) => setVerifyImage(e.target.value)}
-                  placeholder="Container image (your repo's toolchain), e.g. node:alpine"
-                  className={cn(FIELD, 'font-mono text-[11.5px]')}
-                />
-                <label className="flex cursor-pointer items-center gap-2 text-[11px] text-muted">
-                  <input type="checkbox" checked={allowNetwork} onChange={(e) => setAllowNetwork(e.target.checked)} />
-                  Allow the command network access (off by default — that's the isolation)
-                </label>
-              </div>
-            )}
+              <span className="shrink-0 text-[10.5px] text-muted opacity-0 transition-opacity group-hover:opacity-100">Change</span>
+            </button>
+          )}
+        </Field>
 
-            <div className="flex items-start gap-2.5 border-t border-primary/10 pt-3">
-              <Plug size={13} className="mt-0.5 shrink-0 text-muted" />
-              <div className="min-w-0 flex-1">
-                <div className="text-[11.5px] font-medium text-primary">Your MCP servers (optional)</div>
-                <div className="mb-1.5 text-[11px] leading-snug text-muted">
-                  One per line, as you'd run it — e.g. <span className="font-mono">npx -y @modelcontextprotocol/server-filesystem .</span>. Their
-                  tools join the Build agent's built-in file tools.
-                </div>
-                <textarea
-                  value={mcpText}
-                  onChange={(e) => setMcpText(e.target.value)}
-                  rows={2}
-                  placeholder="(none)"
-                  className={cn(FIELD, 'resize-none font-mono text-[11px]')}
+        {/* Intent */}
+        <Field icon={<Sparkles size={12} className="text-muted" />} label="What should change">
+          <textarea
+            value={intent}
+            onChange={(e) => setIntent(e.target.value)}
+            rows={2}
+            placeholder="Describe the change and how you'll know it worked — e.g. add a retry to the upload helper; the flaky test should pass."
+            className={cn(FIELD, 'resize-none leading-relaxed')}
+          />
+        </Field>
+
+        {/* Model */}
+        <Field icon={<Cpu size={12} className="text-muted" />} label="Model">
+          <div className="grid grid-cols-2 gap-2.5">
+            <select value={provider} onChange={(e) => onProviderChange(e.target.value)} className={FIELD}>
+              {PROVIDERS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <select value={isCustomModel ? CUSTOM : model} onChange={(e) => setModel(e.target.value === CUSTOM ? '' : e.target.value)} className={FIELD}>
+              {(activeProvider?.models ?? []).map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+              <option value={CUSTOM}>Custom model…</option>
+            </select>
+          </div>
+          {isCustomModel && (
+            <input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="Exact model id (e.g. from your OpenAI-compatible endpoint)"
+              autoFocus
+              className={cn(FIELD, 'mt-2 font-mono text-[12px]')}
+            />
+          )}
+        </Field>
+
+        {/* Verify */}
+        <Field icon={<Terminal size={12} className="text-muted" />} label="Verify command" hint="yours — the model can't change it">
+          <input
+            value={verifyCmd}
+            onChange={(e) => setVerifyCmd(e.target.value)}
+            placeholder="e.g. npm test"
+            className={cn(FIELD, 'font-mono text-[12px]')}
+          />
+        </Field>
+
+        {/* API key */}
+        <Field icon={<KeyRound size={12} className="text-muted" />} label={`${activeProvider?.label ?? ''} key`}>
+          {hasStoredKey ? (
+            <div className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-ok/25 bg-ok/[0.05] px-3.5 py-2.5">
+              <span className="flex min-w-0 items-center gap-2 text-[12px] text-secondary">
+                <ShieldCheck size={14} className="shrink-0 text-ok" />
+                Saved in your OS keychain — it never enters this window again.
+              </span>
+              <Button size="sm" onClick={() => void forgetKey()}>
+                Forget
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <KeyRound size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint" />
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={`${keyName} — env only, never argv or plaintext disk`}
+                  autoComplete="off"
+                  className={cn(FIELD, 'pl-9 font-mono text-[12px]')}
                 />
+              </div>
+              <div className="mt-2.5 flex items-center justify-between gap-3">
+                <span className="text-[11.5px] text-muted">Remember in the OS keychain</span>
+                <Toggle checked={storeKey} onChange={setStoreKey} />
+              </div>
+            </>
+          )}
+        </Field>
+
+        {/* Consent — the one deliberate moment */}
+        <div className="flex items-start justify-between gap-4 rounded-[var(--radius)] border border-warn/30 bg-warn/[0.06] p-3.5">
+          <span className="text-[12px] leading-relaxed text-secondary">
+            <span className="font-medium text-primary">Run my verify command on this machine.</span>{' '}
+            {useContainer
+              ? 'It runs inside an isolated container (below), not directly on your host — but it is still your code executing.'
+              : 'It executes the command above, and code the loop just wrote. Only proceed on a repo you trust.'}
+          </span>
+          <Toggle checked={consent} onChange={setConsent} />
+        </div>
+
+        {/* Advanced — isolated Verify (#10) + BYO-agent MCP (#9) */}
+        <div className="overflow-hidden rounded-[var(--radius)] border border-primary/[0.1]">
+          <button
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="flex w-full items-center justify-between px-3.5 py-2.5 text-[12px] text-secondary transition-colors hover:bg-primary/[0.02] hover:text-primary"
+          >
+            <span className="flex items-center gap-2">
+              <Boxes size={13} className="text-muted" /> Advanced — isolation &amp; your own tools
+            </span>
+            <ChevronDown size={14} className={cn('text-muted transition-transform duration-200', showAdvanced && 'rotate-180')} />
+          </button>
+          {showAdvanced && (
+            <div className="space-y-3.5 border-t border-primary/[0.08] px-3.5 py-3.5">
+              <ToggleRow
+                checked={useContainer}
+                onChange={setUseContainer}
+                title="Isolate Verify in a container"
+                desc="Runs your test command in a throwaway Docker container — only this folder mounted, network off. Needs Docker running; falls back to local if it isn't."
+              />
+              {useContainer && (
+                <div className="space-y-3 border-l-2 border-accent/20 pl-3.5">
+                  <input value={verifyImage} onChange={(e) => setVerifyImage(e.target.value)} placeholder="Container image, e.g. node:alpine" className={cn(FIELD, 'font-mono text-[12px]')} />
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[11.5px] text-muted">
+                      Allow network access <span className="text-faint">— off by default, that's the isolation</span>
+                    </span>
+                    <Toggle checked={allowNetwork} onChange={setAllowNetwork} />
+                  </div>
+                </div>
+              )}
+              <div className="border-t border-primary/[0.08] pt-3.5">
+                <div className="flex items-center gap-1.5 text-[12px] font-medium text-primary">
+                  <Plug size={13} className="text-muted" /> Your MCP servers <span className="font-normal text-faint">(optional)</span>
+                </div>
+                <div className="mb-1.5 mt-1 text-[11px] leading-snug text-muted">
+                  One per line — e.g. <span className="font-mono">npx -y @modelcontextprotocol/server-filesystem .</span>
+                </div>
+                <textarea value={mcpText} onChange={(e) => setMcpText(e.target.value)} rows={2} placeholder="(none)" className={cn(FIELD, 'resize-none font-mono text-[11.5px]')} />
               </div>
             </div>
+          )}
+        </div>
+
+        {launchError && (
+          <div className="flex items-start gap-2 rounded-[var(--radius)] border border-warn/30 bg-warn/[0.08] p-3 text-[12px] text-secondary">
+            <TriangleAlert size={14} className="mt-0.5 shrink-0 text-warn" />
+            <span className="min-w-0 break-words">{launchError}</span>
           </div>
         )}
       </div>
 
-      {launchError && (
-        <div className="flex items-start gap-2 rounded-[var(--radius)] border border-warn/30 bg-warn/[0.08] p-2.5 text-[11.5px] text-secondary">
-          <TriangleAlert size={13} className="mt-0.5 shrink-0 text-warn" />
-          <span className="min-w-0 break-words">{launchError}</span>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between gap-3 border-t border-primary/10 pt-3">
+      {/* Launch bar — the primary moment */}
+      <div className="flex items-center justify-between gap-3 border-t border-primary/[0.08] bg-primary/[0.015] px-5 py-3.5">
         <span className="text-[11px] text-muted">
-          Budget: {maxIterations} iteration{maxIterations === 1 ? '' : 's'} · guided · abort anytime
+          {maxIterations} iteration{maxIterations === 1 ? '' : 's'} · guided · abort anytime
         </span>
-        <Button
-          variant="primary"
-          disabled={!complete || running}
-          onClick={() => {
-            onLaunch({
-              workspacePath,
-              intent: intent.trim(),
-              provider,
-              model: model.trim(),
-              verifyCmd: verifyCmd.trim(),
-              consentToRun: consent,
-              maxIterations,
-              apiKey: apiKey.trim() || undefined,
-              storeKey: apiKey.trim() !== '' ? storeKey : undefined,
-              verifyMode: useContainer ? 'container' : 'local',
-              verifyImage: useContainer ? verifyImage.trim() || undefined : undefined,
-              verifyAllowNetwork: useContainer ? allowNetwork : undefined,
-              mcpServers: mcpText
-                .split('\n')
-                .map((l) => l.trim())
-                .filter(Boolean),
-            })
-            if (apiKey.trim() !== '' && storeKey) {
-              // The host saves it at launch; reflect that here and drop the
-              // plaintext from React state.
-              setApiKey('')
-              setHasStoredKey(true)
-            }
-          }}
-        >
-          <Play size={13} /> {running ? 'Loop running…' : 'Launch real loop'}
+        <Button variant="primary" size="lg" disabled={!complete || running} onClick={doLaunch}>
+          <Play size={14} /> {running ? 'Loop running…' : 'Launch real loop'}
         </Button>
       </div>
-    </Slab>
+    </section>
   )
+}
+
+function basename(p: string): string {
+  return p.replace(/\/+$/, '').split('/').pop() || p
 }
