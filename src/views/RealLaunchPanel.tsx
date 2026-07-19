@@ -5,7 +5,7 @@
  * checkbox — the CLI's --allow-run flag as a surface a human reads. Renders
  * only inside the desktop shell; the web demo never sees it.
  */
-import { FolderOpen, KeyRound, Play, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { Boxes, ChevronDown, FolderOpen, KeyRound, Play, Plug, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button, Label, Slab, cn } from '../components/ui'
 import { keychainDelete, keychainStatus, pickWorkspaceFolder, type RealLoopArgs } from '../desktop/realLoop'
@@ -60,6 +60,12 @@ export default function RealLaunchPanel({
   const [storeKey, setStoreKey] = useState(true)
   const [hasStoredKey, setHasStoredKey] = useState(false)
   const [consent, setConsent] = useState(false)
+  // Phase 5 advanced options
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [useContainer, setUseContainer] = useState(false)
+  const [verifyImage, setVerifyImage] = useState('node:alpine')
+  const [allowNetwork, setAllowNetwork] = useState(false)
+  const [mcpText, setMcpText] = useState('')
 
   // The stored key itself never reaches this webview — only whether one
   // exists. Re-checked per provider (each has its own keychain entry).
@@ -201,10 +207,69 @@ export default function RealLaunchPanel({
       <label className="flex cursor-pointer items-start gap-2.5 rounded-[var(--radius)] border border-warn/25 bg-warn/[0.06] p-3">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 accent-[var(--warn,#b45309)]" />
         <span className="text-[11.5px] leading-snug text-secondary">
-          <span className="font-medium text-primary">Run my verify command on this machine.</span> Verification executes
-          the command above — and code the loop just modified. Only proceed on a repo you trust.
+          <span className="font-medium text-primary">Run my verify command on this machine.</span>{' '}
+          {useContainer
+            ? 'It runs inside an isolated container (below), not directly on your host — but it is still your code executing.'
+            : 'Verification executes the command above — and code the loop just modified. Only proceed on a repo you trust.'}
         </span>
       </label>
+
+      {/* Phase 5 advanced options — isolated Verify (#10) + BYO-agent MCP (#9) */}
+      <div className="rounded-[var(--radius)] border border-primary/10">
+        <button
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="flex w-full items-center justify-between px-3 py-2 text-[11.5px] text-secondary transition-colors hover:text-primary"
+        >
+          <span className="flex items-center gap-1.5">
+            <Boxes size={13} className="text-muted" /> Advanced — isolation & your own tools
+          </span>
+          <ChevronDown size={14} className={cn('text-muted transition-transform', showAdvanced && 'rotate-180')} />
+        </button>
+        {showAdvanced && (
+          <div className="space-y-3 border-t border-primary/10 p-3">
+            <label className="flex cursor-pointer items-start gap-2.5">
+              <input type="checkbox" checked={useContainer} onChange={(e) => setUseContainer(e.target.checked)} className="mt-0.5" />
+              <span className="text-[11.5px] leading-snug text-secondary">
+                <span className="font-medium text-primary">Isolate Verify in a container.</span> Runs your test command in a
+                throwaway Docker container — only this folder mounted, network off — instead of on your host. Needs Docker
+                running; falls back to local if it isn't.
+              </span>
+            </label>
+            {useContainer && (
+              <div className="ml-6 space-y-2">
+                <input
+                  value={verifyImage}
+                  onChange={(e) => setVerifyImage(e.target.value)}
+                  placeholder="Container image (your repo's toolchain), e.g. node:alpine"
+                  className={cn(FIELD, 'font-mono text-[11.5px]')}
+                />
+                <label className="flex cursor-pointer items-center gap-2 text-[11px] text-muted">
+                  <input type="checkbox" checked={allowNetwork} onChange={(e) => setAllowNetwork(e.target.checked)} />
+                  Allow the command network access (off by default — that's the isolation)
+                </label>
+              </div>
+            )}
+
+            <div className="flex items-start gap-2.5 border-t border-primary/10 pt-3">
+              <Plug size={13} className="mt-0.5 shrink-0 text-muted" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[11.5px] font-medium text-primary">Your MCP servers (optional)</div>
+                <div className="mb-1.5 text-[11px] leading-snug text-muted">
+                  One per line, as you'd run it — e.g. <span className="font-mono">npx -y @modelcontextprotocol/server-filesystem .</span>. Their
+                  tools join the Build agent's built-in file tools.
+                </div>
+                <textarea
+                  value={mcpText}
+                  onChange={(e) => setMcpText(e.target.value)}
+                  rows={2}
+                  placeholder="(none)"
+                  className={cn(FIELD, 'resize-none font-mono text-[11px]')}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {launchError && (
         <div className="flex items-start gap-2 rounded-[var(--radius)] border border-warn/30 bg-warn/[0.08] p-2.5 text-[11.5px] text-secondary">
@@ -231,6 +296,13 @@ export default function RealLaunchPanel({
               maxIterations,
               apiKey: apiKey.trim() || undefined,
               storeKey: apiKey.trim() !== '' ? storeKey : undefined,
+              verifyMode: useContainer ? 'container' : 'local',
+              verifyImage: useContainer ? verifyImage.trim() || undefined : undefined,
+              verifyAllowNetwork: useContainer ? allowNetwork : undefined,
+              mcpServers: mcpText
+                .split('\n')
+                .map((l) => l.trim())
+                .filter(Boolean),
             })
             if (apiKey.trim() !== '' && storeKey) {
               // The host saves it at launch; reflect that here and drop the
