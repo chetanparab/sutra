@@ -1,5 +1,5 @@
 /**
- * Exposes the Phase 0 fs tools (read_file, list_dir, edit_file) as ToolDefs a
+ * Exposes the fs tools (read_file, list_dir, edit_file, create_file) as ToolDefs a
  * provider's tool-use can call, plus a dispatcher that executes a ToolCall
  * against a real FsTools instance — translating thrown errors (workspace
  * escape, ambiguous edit match) into a result the model can see and react to,
@@ -40,6 +40,19 @@ export const FS_TOOL_DEFS: ToolDef[] = [
       required: ['path', 'oldString', 'newString'],
     },
   },
+  {
+    name: 'create_file',
+    description:
+      'Create a NEW file with the given contents. Use this for a file that does not exist yet — edit_file only changes files that already exist. Fails if the file is already there (use edit_file for that). Parent directories are created automatically. This is how you scaffold new files and new projects.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Path relative to the workspace root.' },
+        contents: { type: 'string', description: 'The full contents to write to the new file.' },
+      },
+      required: ['path', 'contents'],
+    },
+  },
 ]
 
 export interface ToolExecutionResult {
@@ -72,6 +85,12 @@ export function executeFsToolCall(tools: FsTools, call: ToolCall): ToolExecution
           newString: argAsString(call.arguments, 'newString'),
         })
         return { toolCallId: call.id, content: `Edited ${path}.`, isError: false }
+      }
+
+      case 'create_file': {
+        const path = argAsString(call.arguments, 'path')
+        tools.createFile(path, argAsString(call.arguments, 'contents'))
+        return { toolCallId: call.id, content: `Created ${path}.`, isError: false }
       }
 
       default:

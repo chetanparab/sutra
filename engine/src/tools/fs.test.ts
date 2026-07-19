@@ -31,6 +31,29 @@ test('edits a file with a unique match', () => {
   })
 })
 
+test('creates a new file, making parent directories as needed', () => {
+  withTempRoot((root) => {
+    const tools = createFsTools(root)
+    tools.createFile('src/lib/util.ts', 'export const x = 1\n')
+    assert.equal(tools.readFile('src/lib/util.ts'), 'export const x = 1\n')
+  })
+})
+
+test('create_file refuses to clobber an existing file (that is edit_file’s job)', () => {
+  withTempRoot((root) => {
+    writeFileSync(join(root, 'a.txt'), 'original')
+    const tools = createFsTools(root)
+    assert.throws(() => tools.createFile('a.txt', 'replacement'), /already exists/)
+    assert.equal(tools.readFile('a.txt'), 'original')
+  })
+})
+
+test('create_file cannot escape the workspace root', () => {
+  withTempRoot((root) => {
+    assert.throws(() => createFsTools(root).createFile('../evil.txt', 'x'), WorkspaceEscapeError)
+  })
+})
+
 test('lists directory entries with file/dir type', () => {
   withTempRoot((root) => {
     writeFileSync(join(root, 'a.txt'), 'x')
