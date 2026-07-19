@@ -23,8 +23,10 @@ import type { HermesMemo, IterationRecord, LoopEvent, LoopPhase, LoopState, Sign
 import type { Loop } from './useLoop'
 
 export interface RealRunMeta {
+  intent: string
   workspacePath: string
   verifyCmd: string
+  verifyMode: 'local' | 'container'
   branchName: string | null
   diff: string | null
   outcome: EngineOutcome | null
@@ -69,7 +71,7 @@ const emptyAccum = (): StreamAccum => ({
 
 export function useRealLoop(): RealLoopController {
   const [accum, setAccum] = useState<StreamAccum>(emptyAccum)
-  const [meta, setMeta] = useState<RealRunMeta>({ workspacePath: '', verifyCmd: '', branchName: null, diff: null, outcome: null, logs: [], launchError: null })
+  const [meta, setMeta] = useState<RealRunMeta>({ intent: '', workspacePath: '', verifyCmd: '', verifyMode: 'local', branchName: null, diff: null, outcome: null, logs: [], launchError: null })
   const [maxIterations, setMaxIterations] = useState(3)
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [now, setNow] = useState(0)
@@ -111,7 +113,7 @@ export function useRealLoop(): RealLoopController {
   const launch = useCallback(async (args: RealLoopArgs) => {
     handleRef.current?.dispose()
     setAccum({ ...emptyAccum(), status: 'running' })
-    setMeta({ workspacePath: args.workspacePath, verifyCmd: args.verifyCmd, branchName: null, diff: null, outcome: null, logs: [], launchError: null })
+    setMeta({ intent: args.intent, workspacePath: args.workspacePath, verifyCmd: args.verifyCmd, verifyMode: args.verifyMode ?? 'local', branchName: null, diff: null, outcome: null, logs: [], launchError: null })
     setMaxIterations(args.maxIterations)
     setStartedAt(Date.now())
     setNow(Date.now())
@@ -162,7 +164,7 @@ export function useRealLoop(): RealLoopController {
     handleRef.current?.dispose()
     handleRef.current = null
     setAccum(emptyAccum())
-    setMeta({ workspacePath: '', verifyCmd: '', branchName: null, diff: null, outcome: null, logs: [], launchError: null })
+    setMeta({ intent: '', workspacePath: '', verifyCmd: '', verifyMode: 'local', branchName: null, diff: null, outcome: null, logs: [], launchError: null })
     setStartedAt(null)
   }, [])
 
