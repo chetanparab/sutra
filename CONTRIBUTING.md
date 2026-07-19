@@ -1,8 +1,9 @@
 # Contributing to Sutra
 
-Thanks for your interest! Sutra is a concept preview moving toward a real,
-BYO-agent/BYO-LLM product, and thoughtful contributions — bug fixes, accessibility
-improvements, docs, new adapters — are welcome.
+Thanks for your interest! Sutra is a real, shipping BYO-agent / BYO-LLM
+loop-engineering IDE (desktop app + a headless engine), with an in-browser demo
+of the same UI. Thoughtful contributions — bug fixes, accessibility, docs, new
+LLM/agent adapters, more eval fixtures — are welcome.
 
 **Start here:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) explains the contracts (the
 seams between the loop and the intelligence you bring); [`ROADMAP.md`](./ROADMAP.md)
@@ -24,10 +25,11 @@ are scoped against a specific roadmap phase.
 pull request with **passing CI** and **at least one approving review**.
 
 1. **Fork** the repo and create a branch: `git checkout -b fix/short-description`.
-2. **Develop** with `npm run dev`. Working on the real-execution engine (see
-   [ROADMAP.md](./ROADMAP.md), Phase 0+)? Use `npm run engine -- <args>` — it's a
-   separate, Node-only module tree under [`engine/`](./engine), isolated from the
-   web app on purpose.
+2. **Develop.** For the web UI / demo: `npm run dev` (→ localhost:5183). For the
+   desktop app: `npm run desktop:dev` (builds the engine sidecar and launches the
+   Tauri shell; needs Rust). Working on the engine directly? It's a separate,
+   Node-only module tree under [`engine/`](./engine) — drive it with
+   `npm run engine -- <args>` (e.g. `apply-test-edit`, `loop`, `merge`).
 3. **Verify** before you push — this must pass, exactly as CI runs it:
    ```bash
    npm run build             # tsc --noEmit && vite build (the web app)
