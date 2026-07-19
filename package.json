@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:desktop": "npm run build && node -e \"require('fs').copyFileSync('dist/app.html','dist/index.html')\"",
     "preview": "vite preview",
     "engine": "tsx engine/src/cli.ts",
     "typecheck:engine": "tsc --noEmit -p engine/tsconfig.json",

@@ -1,6 +1,7 @@
-import { ArrowRight, CircleDot, GitBranch, Loader2, Play, Sparkles, Target, Users } from 'lucide-react'
+import { ArrowRight, CircleDot, Download, GitBranch, Loader2, Play, Sparkles, Target, Users } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Button, Chip, Label, Slab, cn } from '../components/ui'
+import { RELEASES_URL } from '../site/content'
 import { BLAST_SUMMARY, INTENT_ID, INTENT_SUGGESTIONS, INTENT_TEXT, INTERPRETATION, SIGNALS } from '../scenario'
 import type { Mode } from '../types'
 
@@ -152,10 +153,14 @@ export default function IntentView({ mode, dispatched, onDispatch }: { mode: Mod
             <Slab title="Your intent">
               <p className="text-[15px] font-display leading-relaxed text-primary">“{text.trim()}”</p>
               <p className="mt-3 border-t border-primary/10 pt-3.5 text-[12.5px] leading-relaxed text-secondary">
-                This is a concept preview. Sutra’s live loop — the agent crew, the code surface and the WebAssembly
-                verification — is wired to one built-in scenario: <span className="text-primary">payment-retry idempotency</span>.
-                Load it to watch the loop actually run, resolve a conflict and converge with measured proof —
-                <span className="text-primary"> running any intent with your own agents and models is on the roadmap.</span>
+                <span className="font-medium text-primary">This browser page is a demo.</span> It runs one built-in
+                scenario (<span className="text-primary">payment-retry idempotency</span>) so you can watch a real loop
+                converge — but it can’t run your intent on your repo, because the real engine needs your files, git and
+                tests running on <span className="text-primary">your machine</span>, not in a browser tab.
+              </p>
+              <p className="mt-2 text-[12.5px] leading-relaxed text-secondary">
+                To run <span className="text-primary">this</span> intent for real — your repo, your model (Anthropic or
+                any OpenAI-compatible), isolated container verify and your own MCP tools — get the desktop app.
               </p>
             </Slab>
 
@@ -163,8 +168,13 @@ export default function IntentView({ mode, dispatched, onDispatch }: { mode: Mod
               <Button variant="ghost" onClick={() => setPhase('compose')}>
                 Adjust intent
               </Button>
+              <a href={RELEASES_URL} target="_blank" rel="noreferrer">
+                <Button variant="quiet" size="lg">
+                  <Download size={13} /> Get the desktop app
+                </Button>
+              </a>
               <Button variant="primary" size="lg" onClick={loadDemo}>
-                <Play size={13} /> Load the live demo
+                <Play size={13} /> Watch the demo
               </Button>
             </div>
           </div>
