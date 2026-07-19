@@ -18,6 +18,7 @@ import type { LoopSubtab, Mode, SpecPhase, StageId, StageItem, StageState } from
 import IntentView from './views/IntentView'
 import LoopDesignView from './views/LoopDesignView'
 import LoopRunView from './views/LoopRunView'
+import RealLoopRunView from './views/RealLoopRunView'
 import MergeView from './views/MergeView'
 import RealLaunchPanel from './views/RealLaunchPanel'
 import RealMergeView from './views/RealMergeView'
@@ -365,7 +366,13 @@ export default function App() {
         {stage === 'intent' && <IntentView mode={mode} dispatched={dispatched} onDispatch={onDispatch} />}
         {stage === 'loop' &&
           (loopSubtab === 'run' && activeLoop.state.started ? (
-            <LoopRunView loop={activeLoop} onOpenReview={() => setStage('review')} />
+            engineMode === 'real' ? (
+              // Real runs get a real run view — your intent, live engine output,
+              // your actual verify result — not the scripted demo mission.
+              <RealLoopRunView real={real} onOpenReview={() => setStage('review')} />
+            ) : (
+              <LoopRunView loop={activeLoop} onOpenReview={() => setStage('review')} />
+            )
           ) : (
             <LoopDesignView
               config={loopConfig}

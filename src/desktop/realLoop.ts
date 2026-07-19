@@ -24,6 +24,8 @@ export interface EngineOutcome {
   headSha?: string
   diff?: string
   message?: string
+  /** The final Verify run's real result (converged/exhausted outcomes carry it). */
+  finalVerify?: { passed: boolean; exitCode: number | null; stdout: string; stderr: string; timedOut: boolean }
 }
 
 export type EngineStreamLine =
