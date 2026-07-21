@@ -42,6 +42,9 @@ pub struct LoopArgs {
     verify_allow_network: Option<bool>,
     /// Phase 5 (#9): MCP servers ("command arg1 arg2") whose tools Build may use.
     mcp_servers: Option<Vec<String>>,
+    /// New project from scratch: git init + an empty initial commit when the
+    /// chosen folder isn't a repo yet. Opt-in; the engine re-checks.
+    init_if_needed: Option<bool>,
 }
 
 /// Spawn the engine sidecar in `--events ndjson` mode and forward its stream
@@ -96,23 +99,33 @@ async fn loop_start(app: AppHandle, state: State<'_, RunningLoop>, args: LoopArg
             cmd = cmd.args(["--mcp-server", &spec]);
         }
     }
+    // New project from scratch: only pass the flag when explicitly requested,
+    // so pointing at an existing repo stays byte-identical to before.
+    if args.init_if_needed == Some(true) {
+        cmd = cmd.args(["--init-if-needed", "true"]);
+    }
     // Key resolution: freshly typed > OS keychain > inherited shell env.
     // Env on the child only — never argv (visible in process lists), never
     // plaintext disk, never logs. Which variable depends on the provider.
+    // claude-code needs NO key at all — the engine drives the user's locally
+    // signed-in Claude Code CLI, whose auth never passes through this host.
     let var = match args.provider.as_str() {
-        "anthropic" => "ANTHROPIC_API_KEY",
-        "openai-compat" => "OPENAI_API_KEY",
+        "anthropic" => Some("ANTHROPIC_API_KEY"),
+        "openai-compat" => Some("OPENAI_API_KEY"),
+        "claude-code" => None,
         other => return Err(format!("unknown provider \"{other}\"")),
     };
-    if let Some(key) = args.api_key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
-        if args.store_key.unwrap_or(false) {
-            keychain_entry(&args.provider)?
-                .set_password(key)
-                .map_err(|e| format!("could not save the key to the OS keychain: {e}"))?;
+    if let Some(var) = var {
+        if let Some(key) = args.api_key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
+            if args.store_key.unwrap_or(false) {
+                keychain_entry(&args.provider)?
+                    .set_password(key)
+                    .map_err(|e| format!("could not save the key to the OS keychain: {e}"))?;
+            }
+            cmd = cmd.env(var, key);
+        } else if let Ok(stored) = keychain_entry(&args.provider)?.get_password() {
+            cmd = cmd.env(var, stored);
         }
-        cmd = cmd.env(var, key);
-    } else if let Ok(stored) = keychain_entry(&args.provider)?.get_password() {
-        cmd = cmd.env(var, stored);
     }
 
     // Reserve the single-loop slot, spawn, and store the handle while holding
