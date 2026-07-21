@@ -75,6 +75,8 @@ export interface RealLoopArgs {
   verifyAllowNetwork?: boolean
   /** Phase 5 (#9): MCP servers whose tools the Build model may use. Each: "command arg1 arg2". */
   mcpServers?: string[]
+  /** New project from scratch: git init + an empty initial commit if the folder isn't a repo yet. */
+  initIfNeeded?: boolean
 }
 
 export interface RealLoopHandlers {
@@ -130,6 +132,7 @@ export async function startRealLoop(args: RealLoopArgs, handlers: RealLoopHandle
         verify_image: args.verifyImage ?? null,
         verify_allow_network: args.verifyAllowNetwork ?? null,
         mcp_servers: args.mcpServers ?? null,
+        init_if_needed: args.initIfNeeded ?? null,
       },
     })
   } catch (err) {

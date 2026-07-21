@@ -46,8 +46,21 @@ function ToggleRow({ checked, onChange, title, desc }: { checked: boolean; onCha
 
 const PROVIDERS = [
   {
+    // No API key: drives the locally installed, signed-in Claude Code CLI.
+    id: 'claude-code',
+    label: 'Claude Code — your local sign-in',
+    keyName: '',
+    defaultModel: 'default',
+    models: [
+      { id: 'default', label: 'Your Claude Code default model' },
+      { id: 'sonnet', label: 'Claude Sonnet — balanced' },
+      { id: 'opus', label: 'Claude Opus — most capable' },
+      { id: 'haiku', label: 'Claude Haiku — fastest' },
+    ],
+  },
+  {
     id: 'anthropic',
-    label: 'Anthropic',
+    label: 'Anthropic API key',
     keyName: 'ANTHROPIC_API_KEY',
     defaultModel: 'claude-sonnet-5',
     models: [
@@ -58,7 +71,7 @@ const PROVIDERS = [
   },
   {
     id: 'openai-compat',
-    label: 'OpenAI-compatible',
+    label: 'OpenAI-compatible API key',
     keyName: 'OPENAI_API_KEY',
     defaultModel: 'gpt-4o',
     models: [
@@ -81,9 +94,10 @@ export default function RealLaunchPanel({
   onLaunch: (args: RealLoopArgs) => void
 }) {
   const [workspacePath, setWorkspacePath] = useState('')
+  const [initProject, setInitProject] = useState(false)
   const [intent, setIntent] = useState('')
-  const [provider, setProvider] = useState('anthropic')
-  const [model, setModel] = useState('claude-sonnet-5')
+  const [provider, setProvider] = useState('claude-code')
+  const [model, setModel] = useState('default')
   const [verifyCmd, setVerifyCmd] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [storeKey, setStoreKey] = useState(true)
@@ -116,6 +130,8 @@ export default function RealLaunchPanel({
   const complete = workspacePath !== '' && intent.trim() !== '' && model.trim() !== '' && verifyCmd.trim() !== '' && consent
   const activeProvider = PROVIDERS.find((p) => p.id === provider)
   const keyName = activeProvider?.keyName ?? 'API key'
+  /** claude-code drives the local signed-in CLI — there is no key to collect. */
+  const keyless = activeProvider?.keyName === ''
 
   // The dropdown shows a fixed list; anything not on it is a custom model, and
   // the select falls to "Custom…" which reveals a free-text box (OpenAI-compat
@@ -143,8 +159,10 @@ export default function RealLaunchPanel({
       verifyCmd: verifyCmd.trim(),
       consentToRun: consent,
       maxIterations,
-      apiKey: apiKey.trim() || undefined,
-      storeKey: apiKey.trim() !== '' ? storeKey : undefined,
+      initIfNeeded: initProject || undefined,
+      // A key typed under another provider must not ride along into keyless mode.
+      apiKey: keyless ? undefined : apiKey.trim() || undefined,
+      storeKey: !keyless && apiKey.trim() !== '' ? storeKey : undefined,
       verifyMode: useContainer ? 'container' : 'local',
       verifyImage: useContainer ? verifyImage.trim() || undefined : undefined,
       verifyAllowNetwork: useContainer ? allowNetwork : undefined,
@@ -185,6 +203,14 @@ export default function RealLaunchPanel({
               <span className="shrink-0 text-[10.5px] text-muted opacity-0 transition-opacity group-hover:opacity-100">Change</span>
             </button>
           )}
+          <div className="mt-2.5">
+            <ToggleRow
+              checked={initProject}
+              onChange={setInitProject}
+              title="Start a new project here"
+              desc="Pick an empty folder and the loop scaffolds it: git init + a first commit, then the model builds from nothing. Off for existing repos."
+            />
+          </div>
         </Field>
 
         {/* Intent */}
@@ -238,8 +264,19 @@ export default function RealLaunchPanel({
           />
         </Field>
 
-        {/* API key */}
-        <Field icon={<KeyRound size={12} className="text-muted" />} label={`${activeProvider?.label ?? ''} key`}>
+        {/* API key — or the keyless claude-code path */}
+        {keyless ? (
+          <div className="flex items-center gap-2.5 rounded-[var(--radius)] border border-ok/25 bg-ok/[0.05] px-3.5 py-2.5">
+            <ShieldCheck size={14} className="shrink-0 text-ok" />
+            <span className="text-[12px] leading-relaxed text-secondary">
+              <span className="font-medium text-primary">No API key needed.</span> Runs through your locally signed-in Claude
+              Code — its auth never passes through Sutra. Not installed?{' '}
+              <span className="font-mono text-[11px]">npm i -g @anthropic-ai/claude-code</span>, then run{' '}
+              <span className="font-mono text-[11px]">claude</span> once to sign in.
+            </span>
+          </div>
+        ) : (
+        <Field icon={<KeyRound size={12} className="text-muted" />} label="API key" hint={keyName}>
           {hasStoredKey ? (
             <div className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-ok/25 bg-ok/[0.05] px-3.5 py-2.5">
               <span className="flex min-w-0 items-center gap-2 text-[12px] text-secondary">
@@ -270,6 +307,7 @@ export default function RealLaunchPanel({
             </>
           )}
         </Field>
+        )}
 
         {/* Consent — the one deliberate moment */}
         <div className="flex items-start justify-between gap-4 rounded-[var(--radius)] border border-warn/30 bg-warn/[0.06] p-3.5">

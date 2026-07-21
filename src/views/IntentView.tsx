@@ -159,8 +159,9 @@ export default function IntentView({ mode, dispatched, onDispatch }: { mode: Mod
                 tests running on <span className="text-primary">your machine</span>, not in a browser tab.
               </p>
               <p className="mt-2 text-[12.5px] leading-relaxed text-secondary">
-                To run <span className="text-primary">this</span> intent for real — your repo, your model (Anthropic or
-                any OpenAI-compatible), isolated container verify and your own MCP tools — get the desktop app.
+                To run <span className="text-primary">this</span> intent for real — your repo, no API key needed (it can
+                drive your local <span className="text-primary">Claude Code</span> sign-in, or bring an Anthropic /
+                OpenAI-compatible key), isolated container verify, even a brand-new empty folder — get the desktop app.
               </p>
             </Slab>
 
