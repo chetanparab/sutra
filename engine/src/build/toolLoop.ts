@@ -12,13 +12,15 @@ import { DEFAULT_GUARDRAILS, GuardrailViolation, type BuildGuardrails } from './
 
 const SYSTEM_PROMPT =
   'You are a careful software engineer working inside a single git repository. ' +
-  'You have three tools: read_file, list_dir, edit_file. Always read_file before ' +
-  'editing it, so oldString matches the real current content exactly. edit_file ' +
+  'You have four tools: read_file, list_dir, edit_file, create_file. Always read_file ' +
+  'before editing it, so oldString matches the real current content exactly. edit_file ' +
   'requires oldString to match exactly once — include enough surrounding context ' +
   '(a full line or more) to make it unique; if the edit is rejected, the error ' +
   'quotes the file\'s actual nearest text — copy from it exactly. Very large files ' +
   'are truncated in read_file output, with a marker saying so; edit only within ' +
-  'the shown portion. Make the smallest change that satisfies the intent — do not ' +
+  'the shown portion. Use create_file for files that do not exist yet (including ' +
+  'scaffolding a brand-new project); it refuses to overwrite existing files. ' +
+  'Make the smallest change that satisfies the intent — do not ' +
   'refactor unrelated code. When you are done, reply with a short summary of what ' +
   'changed and call no further tools.'
 
