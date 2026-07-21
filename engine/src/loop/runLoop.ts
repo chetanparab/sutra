@@ -27,6 +27,7 @@ import { reflect } from '../reflect/reflect'
 import { createFsTools } from '../tools/fs'
 import { outputTailForMemo, runVerifyCommand, type VerifyRunResult } from '../verify/runner'
 import { isDockerAvailable, runVerifyInContainer } from '../verify/containerRunner'
+import { detectVerifyCommand } from '../verify/detect'
 import { connectMcpServers, type McpServerConfig, type McpToolset } from '../mcp/client'
 import { resolveProvider } from '../commands/build'
 import {
@@ -50,8 +51,14 @@ export interface RunLoopParams {
   model: string
   /** Model for Reflect memos — defaults to `model`. Per-role routing, cheaply. */
   reflectModel?: string
-  /** The user's own verify command — never model-authored. */
-  verifyCommand: string
+  /**
+   * The command that decides "done". Optional: when omitted, the engine
+   * auto-detects it from the workspace after each Build (package.json test
+   * script, cargo test, pytest, …) so the user never has to type it, and a
+   * project the agent just scaffolded becomes verifiable on the next check.
+   * A caller may still pass one explicitly to pin it. Never model-authored.
+   */
+  verifyCommand?: string
   /** Explicit human consent to execute commands — see runner.ts. */
   consentToRun: true
   maxIterations?: number
@@ -194,11 +201,11 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
   if (verifyMode === 'container' && !isDockerAvailable()) {
     verifyMode = 'local'
   }
-  const runVerify = (): VerifyRunResult =>
+  const runVerify = (command: string): VerifyRunResult =>
     verifyMode === 'container'
       ? runVerifyInContainer({
           workspaceRoot,
-          command: params.verifyCommand,
+          command,
           consentToRun: params.consentToRun,
           image: params.verifyImage,
           allowNetwork: params.verifyAllowNetwork,
@@ -206,7 +213,7 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
         })
       : runVerifyCommand({
           workspaceRoot,
-          command: params.verifyCommand,
+          command,
           consentToRun: params.consentToRun,
           timeoutMs: params.verifyTimeoutMs,
         })
@@ -278,8 +285,38 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
       committedIterations = iteration
 
       record('phase', verifyMode === 'container' ? 'Verify (container)' : 'Verify', 'muted')
-      const verify = runVerify()
-      record('verify', `Verify · ${verify.passed ? 'passed' : verify.timedOut ? 'timed out' : `failed (exit ${verify.exitCode})`}`, verify.passed ? 'ok' : 'warn')
+      // Resolve the verify command NOW (after Build): a caller's explicit
+      // command wins; otherwise auto-detect from the just-built workspace, so
+      // the user never types one and a freshly-scaffolded project is checkable.
+      const pinned = params.verifyCommand?.trim()
+      const detected = pinned ? { command: pinned, reason: 'your command' } : detectVerifyCommand(workspaceRoot)
+      if (!detected) {
+        // Nothing to run: no explicit command, no recognizable toolchain. Don't
+        // fake a green — the build stands, but say plainly it wasn't verified
+        // and route the human to the diff.
+        record('verify', 'Verify · no automatic check found — built, not verified', 'warn')
+        record('converge', 'Built — review the diff (no automated verification)', 'ok')
+        return {
+          ...base,
+          status: 'converged',
+          iterations: iteration,
+          headSha: lastGoodSha,
+          diff: diffSinceBranchPoint(branch),
+          finalVerify: {
+            passed: false,
+            exitCode: null,
+            termSignal: null,
+            stdout: '',
+            stderr: 'No test or build command could be auto-detected, so Sutra built the change without an automated check. Review the diff.',
+            durationMs: 0,
+            timedOut: false,
+          },
+          totalCostUsd: claudeMode ? claudeCost.usd : actualCostUsd(inputTokens, outputTokens),
+        }
+      }
+      params.onLog?.(`→ verify: ${detected.command}  (${detected.reason})`)
+      const verify = runVerify(detected.command)
+      record('verify', `Verify · ${detected.command} · ${verify.passed ? 'passed' : verify.timedOut ? 'timed out' : `failed (exit ${verify.exitCode})`}`, verify.passed ? 'ok' : 'warn')
 
       if (verify.passed) {
         record('converge', `Converged · iteration ${iteration}`, 'ok')

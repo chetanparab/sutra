@@ -53,8 +53,12 @@ export interface RealLoopArgs {
   intent: string
   provider: string
   model: string
-  /** The USER's verify command from the consent surface — never model-authored. */
-  verifyCmd: string
+  /**
+   * The verify command. Optional: when omitted, the engine auto-detects how to
+   * check the project after each Build (test script, cargo test, pytest, …), so
+   * the user never types one. Never model-authored.
+   */
+  verifyCmd?: string
   /** Must be true; the engine refuses otherwise. The consent checkbox sets it. */
   consentToRun: boolean
   maxIterations: number
@@ -122,7 +126,7 @@ export async function startRealLoop(args: RealLoopArgs, handlers: RealLoopHandle
         intent: args.intent,
         provider: args.provider,
         model: args.model,
-        verify_cmd: args.verifyCmd,
+        verify_cmd: args.verifyCmd ?? null,
         consent_to_run: args.consentToRun,
         max_iterations: args.maxIterations,
         reflect_model: args.reflectModel ?? null,

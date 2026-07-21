@@ -46,7 +46,7 @@ export default function RealLoopRunView({ real, onOpenReview }: { real: RealLoop
         <Slab title="This run" bodyClassName="space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="label">Verify</span>
-            <span className="font-mono text-[11px] text-secondary">{meta.verifyCmd}</span>
+            <span className="font-mono text-[11px] text-secondary">{meta.verifyCmd || 'auto-detecting…'}</span>
           </div>
           <div className="flex items-center justify-between border-t border-primary/10 pt-2.5">
             <span className="label">Where</span>
@@ -182,7 +182,7 @@ export default function RealLoopRunView({ real, onOpenReview }: { real: RealLoop
             )
           }
         >
-          <p className="font-mono text-[11px] text-secondary">{meta.verifyCmd}</p>
+          <p className="font-mono text-[11px] text-secondary">{meta.verifyCmd || 'auto-detected'}</p>
           {finalVerify && (finalVerify.stdout || finalVerify.stderr) && (
             <pre className="mt-2.5 max-h-40 overflow-auto rounded-[var(--radius)] border border-primary/10 bg-primary/[0.03] p-2.5 font-mono text-[10.5px] leading-[1.5] text-muted">
               {(finalVerify.stdout + '\n' + finalVerify.stderr).trim().slice(-1500)}

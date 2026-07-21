@@ -159,6 +159,74 @@ test('new project from scratch: an empty folder is initialized and scaffolded, c
   }
 })
 
+test('no verify command given: the engine auto-detects it from the scaffolded project', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'sutra-autoverify-'))
+  try {
+    // The model scaffolds a package.json whose test script trivially passes —
+    // there is NO user-supplied verify command; the engine must find `npm test`.
+    const provider = scriptedProvider([
+      {
+        text: '',
+        toolCalls: [
+          {
+            id: 'c1',
+            name: 'create_file',
+            arguments: { path: 'package.json', contents: JSON.stringify({ name: 'demo', scripts: { test: 'node -e "process.exit(0)"' } }, null, 2) + '\n' },
+          },
+        ],
+      },
+      { text: 'Scaffolded package.json with a passing test.' },
+    ])
+
+    const outcome = await runLoop({
+      workspacePath: root,
+      intent: 'Set up a project with a passing test.',
+      provider,
+      model: 'test',
+      // no verifyCommand at all
+      consentToRun: true,
+      maxIterations: 2,
+      initIfNeeded: true,
+    })
+
+    assert.equal(outcome.status, 'converged')
+    if (outcome.status !== 'converged') return
+    assert.equal(outcome.finalVerify.passed, true)
+    // the flight recorder names the auto-detected command it actually ran
+    assert.ok(outcome.events.some((e) => e.kind === 'verify' && /npm test/.test(e.label)), 'a verify event should name `npm test`')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('no verify command and nothing detectable: built honestly, not faked green', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'sutra-noverify-'))
+  try {
+    const provider = scriptedProvider([
+      { text: '', toolCalls: [{ id: 'c1', name: 'create_file', arguments: { path: 'notes.txt', contents: 'just some prose, nothing runnable\n' } }] },
+      { text: 'Wrote notes.txt.' },
+    ])
+    const outcome = await runLoop({
+      workspacePath: root,
+      intent: 'Write a notes file.',
+      provider,
+      model: 'test',
+      consentToRun: true,
+      maxIterations: 2,
+      initIfNeeded: true,
+    })
+    // Converges (the loop is done, ball in the human's court) but is HONEST that
+    // it never verified — finalVerify.passed is false, with a clear reason.
+    assert.equal(outcome.status, 'converged')
+    if (outcome.status !== 'converged') return
+    assert.equal(outcome.finalVerify.passed, false)
+    assert.match(outcome.finalVerify.stderr, /auto-detected/i)
+    assert.ok(outcome.events.some((e) => e.kind === 'verify' && /no automatic check/i.test(e.label)))
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('exhausts the budget honestly when every fix is wrong, keeping failed commits', async () => {
   await withTask2Repo(async (root) => {
     const provider = scriptedProvider([

@@ -113,7 +113,7 @@ export function useRealLoop(): RealLoopController {
   const launch = useCallback(async (args: RealLoopArgs) => {
     handleRef.current?.dispose()
     setAccum({ ...emptyAccum(), status: 'running' })
-    setMeta({ intent: args.intent, workspacePath: args.workspacePath, verifyCmd: args.verifyCmd, verifyMode: args.verifyMode ?? 'local', branchName: null, diff: null, outcome: null, logs: [], launchError: null })
+    setMeta({ intent: args.intent, workspacePath: args.workspacePath, verifyCmd: args.verifyCmd ?? '', verifyMode: args.verifyMode ?? 'local', branchName: null, diff: null, outcome: null, logs: [], launchError: null })
     setMaxIterations(args.maxIterations)
     setStartedAt(Date.now())
     setNow(Date.now())
@@ -132,7 +132,17 @@ export function useRealLoop(): RealLoopController {
           setAccum((prev) => ({ ...prev, status: 'idle' }))
           setStartedAt(null)
         },
-        onLog: (line) => setMeta((prev) => ({ ...prev, logs: [...prev.logs.slice(-199), line] })),
+        onLog: (line) =>
+          setMeta((prev) => {
+            // The engine narrates the auto-detected verify command as
+            // "→ verify: <cmd>  (<reason>)" — surface it as THE run's command.
+            const m = /^→ verify:\s*(.+?)\s*\(/.exec(line)
+            return {
+              ...prev,
+              verifyCmd: m ? m[1].trim() : prev.verifyCmd,
+              logs: [...prev.logs.slice(-199), line],
+            }
+          }),
         onExit: () =>
           setAccum((prev) =>
             prev.status === 'running'
