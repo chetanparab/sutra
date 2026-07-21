@@ -97,12 +97,23 @@ export default function RealLoopRunView({ real, onOpenReview }: { real: RealLoop
 
         {centerView === 'log' ? (
           <div className="surface flex min-h-0 w-full max-w-2xl flex-1 flex-col overflow-hidden">
-            <div className="flex items-center gap-1.5 border-b border-primary/10 px-3.5 py-2 text-[11px] text-muted">
-              <Terminal size={12} className="text-accent" /> live engine output
+            <div className="flex items-center justify-between border-b border-primary/10 px-3.5 py-2">
+              <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                <Terminal size={12} className="text-accent" /> engine output
+              </span>
+              {running ? (
+                <span className="flex items-center gap-1.5 text-[10.5px] font-medium capitalize text-accent">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent soft-pulse" /> {state.phase} · live
+                </span>
+              ) : (
+                <span className="text-[10.5px] text-muted">done</span>
+              )}
             </div>
             <div ref={logRef} className="min-h-0 flex-1 overflow-y-auto px-3.5 py-3 font-mono text-[11px] leading-[1.6] text-secondary">
               {meta.logs.length === 0 ? (
-                <span className="text-muted">Waiting for the engine…</span>
+                <div className="flex h-full items-center justify-center gap-2 text-muted">
+                  <Loader2 size={12} className="spin" /> waiting for the engine…
+                </div>
               ) : (
                 meta.logs.map((line, i) => (
                   <div key={i} className="whitespace-pre-wrap break-words">
