@@ -285,6 +285,77 @@ async fn engine_version(app: tauri::AppHandle) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// Spec mode (Phase 5+): draft a spec for review. One-shot — spawn the engine's
+/// `plan` command, wait for its single {type:'spec',…} line, hand it back to the
+/// webview. No file writes, no execution; the loop runs the approved spec later.
+#[derive(serde::Deserialize)]
+pub struct PlanArgs {
+    workspace_path: String,
+    intent: String,
+    provider: String,
+    model: String,
+    api_key: Option<String>,
+    store_key: Option<bool>,
+}
+
+#[tauri::command]
+async fn plan_start(app: AppHandle, args: PlanArgs) -> Result<String, String> {
+    let mut cmd = app
+        .shell()
+        .sidecar("sutra-engine")
+        .map_err(|e| format!("sidecar not found (build it: npm run sidecar): {e}"))?
+        .args([
+            "plan",
+            &args.workspace_path,
+            &args.intent,
+            "--provider",
+            &args.provider,
+            "--model",
+            &args.model,
+            "--events",
+            "ndjson",
+        ]);
+
+    // Same key posture as loop_start: env-only, claude-code needs none.
+    let var = match args.provider.as_str() {
+        "anthropic" => Some("ANTHROPIC_API_KEY"),
+        "openai-compat" => Some("OPENAI_API_KEY"),
+        "claude-code" => None,
+        other => return Err(format!("unknown provider \"{other}\"")),
+    };
+    if let Some(var) = var {
+        if let Some(key) = args.api_key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
+            if args.store_key.unwrap_or(false) {
+                keychain_entry(&args.provider)?
+                    .set_password(key)
+                    .map_err(|e| format!("could not save the key to the OS keychain: {e}"))?;
+            }
+            cmd = cmd.env(var, key);
+        } else if let Ok(stored) = keychain_entry(&args.provider)?.get_password() {
+            cmd = cmd.env(var, stored);
+        }
+    }
+
+    let output = cmd.output().await.map_err(|e| format!("engine failed to spawn: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "Planning failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        let t = line.trim();
+        if t.starts_with('{') && t.contains("\"type\":\"spec\"") {
+            return Ok(t.to_string());
+        }
+    }
+    Err(format!(
+        "Planning produced no spec. {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    ))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -305,6 +376,7 @@ pub fn run() {
             engine_version,
             loop_start,
             loop_abort,
+            plan_start,
             merge_branch,
             keychain_status,
             keychain_save,

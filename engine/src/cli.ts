@@ -11,6 +11,10 @@ import { DEFAULT_GUARDRAILS } from './build/guardrails'
 import { estimateCeilingUsd, formatUsd } from './build/costEstimate'
 import { runLoop } from './loop/runLoop'
 import { mergeShadowBranch } from './merge/merge'
+import { plan } from './plan/plan'
+import { resolveProvider } from './commands/build'
+import { CLAUDE_CODE_PROVIDER_ID, createClaudeCliProvider, resolveClaudeBinary } from './agents/claudeCode'
+import { resolve as resolvePath } from 'node:path'
 
 function usage(): never {
   console.error(`sutra-engine — Phase 0/1/2 CLI (see ROADMAP.md)
@@ -60,6 +64,12 @@ Usage:
       consent to execute commands on this machine: verification runs code the
       agent just modified, so only use it on repos you trust.
 
+  npm run engine -- plan <workspace-path> <intent> --provider <id> --model <model-id> [--events ndjson]
+      Spec mode (Phase 5+): one LLM call drafts a spec — requirements, an
+      approach and a task list — grounded in the repo, for you to review before
+      any code is written. No file writes, no execution. The loop runs the
+      approved spec afterwards. --events ndjson emits one {type:'spec',…} line.
+
   npm run engine -- merge <workspace-path> <shadow-branch> --into <target-branch> [--pr true]
       Phase 3: land a finished shadow branch — fast-forward, or rebase then
       fast-forward if the target moved on. Conflicts and dirty worktrees are
@@ -96,6 +106,49 @@ async function runBuild(positional: string[], flags: Record<string, string>): Pr
   } else {
     console.log(`\n${outcome.status === 'aborted' ? 'Aborted.' : 'Stopped — guardrail tripped.'} ${outcome.message}`)
     process.exitCode = 1
+  }
+}
+
+/**
+ * Spec-mode-real: draft a spec (requirements/approach/tasks) for review. One
+ * LLM call, no file writes, no execution — the loop runs the approved spec
+ * afterwards. With --events ndjson, emits one {type:'spec', …} line for the
+ * desktop shell; otherwise pretty-prints the JSON.
+ */
+async function runPlanCommand(positional: string[], flags: Record<string, string>): Promise<void> {
+  const [workspacePath, intent] = positional
+  if (!workspacePath || !intent || !flags.provider || !flags.model) usage()
+
+  const ndjson = flags.events === 'ndjson'
+  if (flags.events && !ndjson) {
+    console.error('--events supports only: ndjson')
+    process.exit(1)
+  }
+  const say = (line: string) => (ndjson ? console.error(line) : console.log(line))
+  const workspaceRoot = resolvePath(workspacePath)
+
+  let provider
+  if (flags.provider === CLAUDE_CODE_PROVIDER_ID) {
+    const bin = resolveClaudeBinary()
+    if (!bin) {
+      console.error('Claude Code CLI not found. Install it and run `claude` once to sign in — or pick a provider with an API key.')
+      process.exit(1)
+    }
+    provider = createClaudeCliProvider(bin, workspaceRoot, { usd: 0 })
+  } else {
+    provider = resolveProvider(flags.provider)
+  }
+
+  say('Drafting the spec…')
+  const controller = new AbortController()
+  const onSigint = () => controller.abort()
+  process.on('SIGINT', onSigint)
+  try {
+    const result = await plan({ provider, model: flags.model, intent, workspaceRoot, signal: controller.signal })
+    if (ndjson) console.log(JSON.stringify({ type: 'spec', ...result.spec }))
+    else console.log(JSON.stringify(result.spec, null, 2))
+  } finally {
+    process.off('SIGINT', onSigint)
   }
 }
 
@@ -288,6 +341,11 @@ async function main(): Promise<void> {
     case 'loop': {
       const { positional, flags } = parseArgs(rest)
       await runLoopCommand(positional, flags)
+      return
+    }
+    case 'plan': {
+      const { positional, flags } = parseArgs(rest)
+      await runPlanCommand(positional, flags)
       return
     }
     case 'merge': {

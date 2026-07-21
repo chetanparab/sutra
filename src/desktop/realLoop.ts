@@ -158,6 +158,65 @@ export async function pickWorkspaceFolder(): Promise<string | null> {
   return typeof picked === 'string' ? picked : null
 }
 
+// ── Spec mode (Phase 5+): draft a real spec before building ──────────────────
+
+export interface PlannedTask {
+  title: string
+  detail: string
+}
+export interface PlannedSpec {
+  requirements: string[]
+  approach: string
+  tasks: PlannedTask[]
+}
+
+export interface DraftSpecArgs {
+  workspacePath: string
+  intent: string
+  provider: string
+  model: string
+  apiKey?: string
+  storeKey?: boolean
+}
+
+/**
+ * One-shot: ask the engine to draft a spec (requirements/approach/tasks) for
+ * review. No file writes, no execution — the loop runs the approved spec after.
+ */
+export async function draftSpec(args: DraftSpecArgs): Promise<PlannedSpec> {
+  if (!isDesktop()) throw new Error('Spec drafting runs only in the desktop shell.')
+  const { invoke } = await import('@tauri-apps/api/core')
+  const raw = await invoke<string>('plan_start', {
+    args: {
+      workspace_path: args.workspacePath,
+      intent: args.intent,
+      provider: args.provider,
+      model: args.model,
+      api_key: args.apiKey ?? null,
+      store_key: args.storeKey ?? null,
+    },
+  })
+  const parsed = JSON.parse(raw) as Partial<PlannedSpec>
+  return {
+    requirements: Array.isArray(parsed.requirements) ? parsed.requirements : [],
+    approach: typeof parsed.approach === 'string' ? parsed.approach : '',
+    tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+  }
+}
+
+/** Fold an approved (possibly edited) spec into one intent the Build loop runs. */
+export function specToIntent(intent: string, spec: PlannedSpec): string {
+  const reqs = spec.requirements.filter((r) => r.trim()).map((r) => `- ${r}`).join('\n')
+  const tasks = spec.tasks.filter((t) => t.title.trim()).map((t, i) => `${i + 1}. ${t.title}${t.detail ? ` — ${t.detail}` : ''}`).join('\n')
+  return (
+    `${intent}\n\n` +
+    `Approved plan — implement all of it:\n\n` +
+    (spec.approach.trim() ? `Approach: ${spec.approach.trim()}\n\n` : '') +
+    (reqs ? `Requirements (all must hold):\n${reqs}\n\n` : '') +
+    (tasks ? `Tasks:\n${tasks}` : '')
+  ).trim()
+}
+
 export interface MergeClickResult {
   ok: boolean
   message: string
