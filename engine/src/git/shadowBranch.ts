@@ -6,6 +6,8 @@
  * shell string — so there is no command-injection surface here.
  */
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 export class GitError extends Error {
   constructor(
@@ -25,6 +27,43 @@ export function git(cwd: string, args: string[]): string {
     const stderr = err && typeof err === 'object' && 'stderr' in err ? String((err as { stderr: unknown }).stderr) : String(err)
     throw new GitError(`git ${args.join(' ')} failed: ${stderr.trim()}`, args, stderr)
   }
+}
+
+/** Like `git`, but returns null instead of throwing — for existence probes. */
+function tryGit(cwd: string, args: string[]): string | null {
+  try {
+    return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * "New project from scratch" (dogfooding request): make `repoRoot` loop-ready
+ * even when the user points at a plain, empty folder, instead of refusing it.
+ * Initializes git if there's no repo; gives it a commit identity if the machine
+ * has none configured (so the loop's commits never fail); and lays down an empty
+ * initial commit if the repo has no HEAD yet — which gives the shadow branch a
+ * clean *empty base* to diff against, so the review shows the whole project the
+ * loop builds. Idempotent: on an existing repo with history it does nothing and
+ * never overrides an identity the user already set. Only called when the caller
+ * explicitly opts in. Returns the steps it actually took, for the flight recorder.
+ */
+export function ensureInitialized(repoRoot: string): string[] {
+  const steps: string[] = []
+  if (!existsSync(join(repoRoot, '.git'))) {
+    git(repoRoot, ['init'])
+    steps.push('initialized an empty git repository')
+  }
+  if (!tryGit(repoRoot, ['config', 'user.email'])) {
+    git(repoRoot, ['config', 'user.email', 'noreply@sutra.local'])
+    git(repoRoot, ['config', 'user.name', 'Sutra'])
+  }
+  if (!tryGit(repoRoot, ['rev-parse', 'HEAD'])) {
+    git(repoRoot, ['commit', '--allow-empty', '-m', 'Initial commit'])
+    steps.push('created an empty initial commit')
+  }
+  return steps
 }
 
 export interface ShadowBranch {

@@ -39,13 +39,15 @@ Usage:
       --verify-cmd "<command>" --allow-run true [--max-iterations N] [--reflect-model <id>] \\
       [--verify-timeout-ms N] [--events ndjson] \\
       [--verify-mode local|container] [--verify-image <image>] [--verify-network true] \\
-      [--mcp-server "<command> <args…>"]
+      [--mcp-server "<command> <args…>"] [--init-if-needed true]
       --verify-mode container runs the verify command in a throwaway Docker
       container (only the workspace mounted, network off) instead of on the
       host — isolation for untrusted repos. --verify-image sets the toolchain
       image (e.g. node:alpine); --verify-network true re-enables the network.
       --mcp-server plugs in your own MCP server whose tools the Build phase's
       model can use alongside the built-in file tools (repeat with ';;').
+      --init-if-needed true starts a NEW project in a plain/empty folder:
+      git init + an empty initial commit, instead of refusing a non-git path.
       Phase 2: the full real loop — Build, commit, VERIFY BY ACTUALLY RUNNING
       your command, Reflect on the failure, iterate, until verification
       passes or the budget is spent.
@@ -193,6 +195,7 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
       verifyImage: flags['verify-image'],
       verifyAllowNetwork: flags['verify-network'] === 'true',
       mcpServers,
+      initIfNeeded: flags['init-if-needed'] === 'true',
       verifyTimeoutMs: flags['verify-timeout-ms'] ? Number(flags['verify-timeout-ms']) : undefined,
       signal: controller.signal,
       onEvent: ndjson ? (e) => console.log(JSON.stringify({ type: 'event', ...e })) : undefined,

@@ -118,6 +118,47 @@ test('a subtly-wrong first attempt converges in 2 iterations with real verify ru
   })
 })
 
+test('new project from scratch: an empty folder is initialized and scaffolded, converging', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'sutra-newproj-'))
+  try {
+    // The model scaffolds a brand-new file with create_file — there is nothing
+    // to edit in an empty project.
+    const provider = scriptedProvider([
+      { text: '', toolCalls: [{ id: 'c1', name: 'create_file', arguments: { path: 'hello.js', contents: "console.log('hello from sutra')\n" } }] },
+      { text: 'Scaffolded hello.js.' },
+    ])
+
+    const outcome = await runLoop({
+      workspacePath: root,
+      intent: 'Create hello.js that prints a greeting.',
+      provider,
+      model: 'test',
+      verifyCommand: 'node hello.js',
+      consentToRun: true,
+      maxIterations: 2,
+      initIfNeeded: true,
+    })
+
+    assert.equal(outcome.status, 'converged')
+    if (outcome.status !== 'converged') return
+    assert.equal(outcome.iterations, 1)
+    // the new file really exists and the verify (node hello.js) really passed
+    assert.equal(outcome.finalVerify.passed, true)
+    assert.match(readFileSync(join(root, 'hello.js'), 'utf8'), /hello from sutra/)
+    // the review diff is the whole new file, taken against the empty initial commit
+    assert.match(outcome.diff, /new file mode/)
+    assert.match(outcome.diff, /hello from sutra/)
+    // a real repo was created: an initial commit plus the iteration commit
+    const log = execFileSync('git', ['log', '--oneline'], { cwd: root, encoding: 'utf8' })
+    assert.match(log, /Initial commit/)
+    assert.match(log, /\[iteration 1\]/)
+    // and the setup surfaced in the flight recorder
+    assert.ok(outcome.events.some((e) => e.kind === 'memo' && /New project/.test(e.label)))
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('exhausts the budget honestly when every fix is wrong, keeping failed commits', async () => {
   await withTask2Repo(async (root) => {
     const provider = scriptedProvider([

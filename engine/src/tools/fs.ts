@@ -1,10 +1,11 @@
 /**
- * The three fs tools Phase 1's tool-use loop will call: read_file, list_dir,
- * edit_file. Every call is routed through resolveInWorkspace — no tool here ever
- * touches a path outside the workspace root. See ROADMAP.md, Phase 0.
+ * The fs tools the tool-use loop can call: read_file, list_dir, edit_file, and
+ * create_file (for brand-new files — edit_file only changes existing ones).
+ * Every call is routed through resolveInWorkspace — no tool here ever touches a
+ * path outside the workspace root. See ROADMAP.md, Phase 0.
  */
-import { closeSync, constants as fsConstants, openSync, readdirSync, readFileSync, statSync, writeSync } from 'node:fs'
-import { join } from 'node:path'
+import { closeSync, constants as fsConstants, mkdirSync, openSync, readdirSync, readFileSync, statSync, writeSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import type { StructuredEdit } from '../../../src/contracts/agent'
 import { resolveInWorkspace } from './workspace'
 
@@ -30,6 +31,8 @@ export interface FsTools {
   listDir(relPath?: string): DirEntry[]
   /** Exact-match replace — throws EditMatchError if oldString isn't found or isn't unique. */
   editFile(relPath: string, edit: StructuredEdit): void
+  /** Create a brand-new file (parents made as needed); throws if it already exists. */
+  createFile(relPath: string, contents: string): void
 }
 
 /**
@@ -137,6 +140,24 @@ export function createFsTools(workspaceRoot: string): FsTools {
 
       const newContent = content.replace(oldString, newString)
       withNoFollowFd(abs, fsConstants.O_WRONLY | fsConstants.O_TRUNC | fsConstants.O_NOFOLLOW, (fd) => writeSync(fd, newContent, 0, 'utf8'))
+    },
+
+    createFile(relPath, contents) {
+      const abs = resolveInWorkspace(workspaceRoot, relPath)
+      mkdirSync(dirname(abs), { recursive: true })
+      // O_CREAT | O_EXCL: create exclusively — fail with EEXIST rather than
+      // clobber an existing file (that's edit_file's job). O_NOFOLLOW keeps the
+      // same symlink-swap guarantee the read/edit paths have.
+      try {
+        withNoFollowFd(abs, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY | fsConstants.O_NOFOLLOW, (fd) =>
+          writeSync(fd, contents, 0, 'utf8'),
+        )
+      } catch (err) {
+        if (err && typeof err === 'object' && (err as { code?: string }).code === 'EEXIST') {
+          throw new Error(`"${relPath}" already exists — use edit_file to change an existing file, not create_file.`)
+        }
+        throw err
+      }
     },
   }
 }

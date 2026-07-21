@@ -22,7 +22,7 @@ import type { LlmProvider } from '../../../src/contracts/llm'
 import { actualCostUsd } from '../build/costEstimate'
 import { GuardrailViolation, type BuildGuardrails } from '../build/guardrails'
 import { runBuildLoop } from '../build/toolLoop'
-import { commitIteration, createShadowBranch, diffSinceBranchPoint, rollbackTo } from '../git/shadowBranch'
+import { commitIteration, createShadowBranch, diffSinceBranchPoint, ensureInitialized, rollbackTo } from '../git/shadowBranch'
 import { reflect } from '../reflect/reflect'
 import { createFsTools } from '../tools/fs'
 import { outputTailForMemo, runVerifyCommand, type VerifyRunResult } from '../verify/runner'
@@ -52,6 +52,15 @@ export interface RunLoopParams {
   verifyTimeoutMs?: number
   signal?: AbortSignal
   baseBranch?: string
+  /**
+   * "New project from scratch" (dogfooding request): when true, a plain or
+   * empty target folder is made loop-ready — `git init` plus an empty initial
+   * commit — instead of being refused for not being a git repo. The empty
+   * initial commit gives the shadow branch a clean base, so the review diff is
+   * the entire project the loop builds. No-op on a repo that already has history.
+   * Off by default: an existing repo is never touched without the explicit flag.
+   */
+  initIfNeeded?: boolean
   /**
    * Where Verify runs (ROADMAP.md Phase 5, issue #10). 'local' executes on the
    * host (default). 'container' runs the command in a throwaway Docker
@@ -111,6 +120,11 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
   if (!existsSync(workspaceRoot)) {
     throw new Error(`No folder at ${workspaceRoot}.`)
   }
+  // "New project from scratch" (opt-in): make a plain/empty folder loop-ready up
+  // front, before the git guard, so pointing at an empty directory scaffolds a
+  // project instead of being refused. Deferred-recorded — `record` isn't defined
+  // until below — so the steps surface in the flight recorder once it is.
+  const initSteps = params.initIfNeeded ? ensureInitialized(workspaceRoot) : []
   // The loop works on a git repo (shadow branch + commits). Check up front so
   // a common mistake — pointing at a plain folder — gets a clear message
   // instead of a cryptic git failure mid-run.
@@ -141,6 +155,8 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
     events.push(event)
     params.onEvent?.(event)
   }
+  // Surface any "new project" setup now that the recorder exists.
+  for (const step of initSteps) record('memo', `New project — ${step}`, 'muted')
 
   // Resolve where Verify runs once, up front (issue #10): container mode needs
   // a working Docker daemon; if it isn't there, fall back to local with a
