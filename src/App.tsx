@@ -20,7 +20,7 @@ import LoopDesignView from './views/LoopDesignView'
 import LoopRunView from './views/LoopRunView'
 import RealLoopRunView from './views/RealLoopRunView'
 import MergeView from './views/MergeView'
-import RealLaunchPanel from './views/RealLaunchPanel'
+import RealLauncher from './views/RealLauncher'
 import RealMergeView from './views/RealMergeView'
 import RealReviewView from './views/RealReviewView'
 import ReviewView from './views/ReviewView'
@@ -333,7 +333,8 @@ export default function App() {
           <div className="surface flex items-center gap-1 rounded-full p-0.5">
             {(
               [
-                { id: 'design' as LoopSubtab, label: 'Design' },
+                // Desktop's "design" tab is the real launcher, not a loop-design surface.
+                { id: 'design' as LoopSubtab, label: isDesktop() ? 'Launch' : 'Design' },
                 { id: 'run' as LoopSubtab, label: 'Run' },
               ] as const
             ).map((t) => {
@@ -373,22 +374,12 @@ export default function App() {
             ) : (
               <LoopRunView loop={activeLoop} onOpenReview={() => setStage('review')} />
             )
+          ) : desktop ? (
+            // Desktop is a real tool: the launcher, nothing scripted. The demo
+            // design surface (LoopDesignView) is web-preview only.
+            <RealLauncher running={real.running} launchError={real.meta.launchError} onLaunch={(args) => void launchReal(args)} />
           ) : (
-            <LoopDesignView
-              config={loopConfig}
-              onChange={setLoopConfig}
-              onLaunch={launchLoop}
-              realPanel={
-                isDesktop() ? (
-                  <RealLaunchPanel
-                    maxIterations={loopConfig.maxIterations}
-                    running={real.running}
-                    launchError={real.meta.launchError}
-                    onLaunch={(args) => void launchReal(args)}
-                  />
-                ) : undefined
-              }
-            />
+            <LoopDesignView config={loopConfig} onChange={setLoopConfig} onLaunch={launchLoop} />
           ))}
         {stage === 'spec' && <SpecView specPhase={specPhase} onApprove={onApproveSpec} />}
         {stage === 'tasks' && <TasksView sim={sim} onStart={() => sim.start()} />}

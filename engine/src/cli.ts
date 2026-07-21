@@ -101,7 +101,9 @@ async function runBuild(positional: string[], flags: Record<string, string>): Pr
 
 async function runLoopCommand(positional: string[], flags: Record<string, string>): Promise<void> {
   const [workspacePath, intent] = positional
-  if (!workspacePath || !intent || !flags.provider || !flags.model || !flags['verify-cmd']) usage()
+  // --verify-cmd is OPTIONAL now: without it the engine auto-detects how to
+  // verify the workspace after each Build.
+  if (!workspacePath || !intent || !flags.provider || !flags.model) usage()
 
   // Consent must be the explicit flag — not inferred, not defaulted.
   if (!('allow-run' in flags)) {
@@ -128,7 +130,7 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
 
   const perIterationCeiling = estimateCeilingUsd(DEFAULT_GUARDRAILS.maxTokens)
   say(`Provider: ${flags.provider} · build model: ${flags.model} · reflect model: ${flags['reflect-model'] ?? flags.model}`)
-  say(`Verify command (yours, never the model's): ${flags['verify-cmd']}`)
+  say(flags['verify-cmd'] ? `Verify command (yours, never the model's): ${flags['verify-cmd']}` : 'Verify: auto-detected from the project after each build.')
   say(`Budget: up to ${maxIterations} iteration(s); per iteration up to ${DEFAULT_GUARDRAILS.maxToolTurns} tool turns / ${DEFAULT_GUARDRAILS.maxTokens} tokens (worst case ${formatUsd(perIterationCeiling)} each).`)
   say('Press Ctrl+C at any time to abort — the current iteration rolls back; completed iterations are kept.\n')
 

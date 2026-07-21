@@ -276,14 +276,17 @@ function flattenMessages(messages: ChatMessage[]): string {
 }
 
 /** The Build prompt for Claude Code — the harness owns commit + verify. */
-export function claudeCodeBuildPrompt(intentForBuild: string, verifyCommand: string): string {
+export function claudeCodeBuildPrompt(intentForBuild: string, verifyCommand?: string): string {
+  const verifyLine = verifyCommand
+    ? `After you finish, the harness commits your work and runs the verify command \`${verifyCommand}\`. Do NOT run it (or any command) yourself.`
+    : 'After you finish, the harness commits your work, auto-detects how to verify it (a test script, build, etc.) and runs that. If this is a new or untested project, set it up so it CAN be checked — add a runnable test or a "test"/"build" script — but do NOT run anything yourself.'
   return (
     'You are the Build phase of an iteration loop working in this repository.\n\n' +
     `INTENT:\n${intentForBuild}\n\n` +
     'Rules:\n' +
     '- Make the smallest change that satisfies the intent; do not refactor unrelated code.\n' +
-    '- Create or edit files in this project only.\n' +
-    `- Do NOT run shell commands, tests, or git — after you finish, the harness commits your work and runs the user's verify command (${verifyCommand}).\n` +
+    '- Create or edit files in this project only. Do NOT run shell commands, tests, or git.\n' +
+    `- ${verifyLine}\n` +
     '- When you are done, reply with a one-paragraph summary of what you changed.'
   )
 }

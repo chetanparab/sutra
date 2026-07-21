@@ -24,7 +24,9 @@ pub struct LoopArgs {
     intent: String,
     provider: String,
     model: String,
-    verify_cmd: String,
+    /// Optional: omitted means the engine auto-detects how to verify the
+    /// project after each Build. When present, it's the user's own command.
+    verify_cmd: Option<String>,
     consent_to_run: bool,
     max_iterations: u8,
     reflect_model: Option<String>,
@@ -69,8 +71,6 @@ async fn loop_start(app: AppHandle, state: State<'_, RunningLoop>, args: LoopArg
             &args.provider,
             "--model",
             &args.model,
-            "--verify-cmd",
-            &args.verify_cmd,
             "--allow-run",
             "true",
             "--max-iterations",
@@ -78,6 +78,11 @@ async fn loop_start(app: AppHandle, state: State<'_, RunningLoop>, args: LoopArg
             "--events",
             "ndjson",
         ]);
+    // Verify command is optional — omit the flag entirely so the engine
+    // auto-detects how to check the project after each Build.
+    if let Some(cmd_str) = args.verify_cmd.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        cmd = cmd.args(["--verify-cmd", cmd_str]);
+    }
     if let Some(reflect_model) = &args.reflect_model {
         cmd = cmd.args(["--reflect-model", reflect_model]);
     }
