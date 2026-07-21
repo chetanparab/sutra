@@ -36,10 +36,12 @@ export default function ConsoleDock({
   current: StageId
   onNavigate: (s: StageId) => void
   activeIndex: number
-  onToggleContext: () => void
+  /** The scenario context-sources drawer — web-demo only; omit to hide it. */
+  onToggleContext?: () => void
   onReplay?: () => void
   cta?: { label: string; onClick: () => void } | null
 }) {
+  const hasTail = onReplay || onToggleContext || cta
   return (
     <div className="absolute bottom-5 left-1/2 z-30 -translate-x-1/2">
       <div className="surface flex items-center gap-1 rounded-full px-2 py-2">
@@ -66,7 +68,7 @@ export default function ConsoleDock({
           })}
         </div>
 
-        <span className="mx-1 h-7 w-px bg-primary/12" />
+        {hasTail && <span className="mx-1 h-7 w-px bg-primary/12" />}
 
         <div className="flex items-center gap-1 pr-1">
           {onReplay && (
@@ -74,12 +76,14 @@ export default function ConsoleDock({
               <RotateCcw size={14} />
             </button>
           )}
-          <button onClick={onToggleContext} title="Context sources" className="flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[11.5px] text-muted transition-colors hover:bg-primary/[0.06] hover:text-secondary">
-            <Layers size={13} />
-            <span className="flex items-center gap-1 text-ok">
-              <span className="h-1.5 w-1.5 rounded-full bg-ok soft-pulse" />5
-            </span>
-          </button>
+          {onToggleContext && (
+            <button onClick={onToggleContext} title="Context sources" className="flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[11.5px] text-muted transition-colors hover:bg-primary/[0.06] hover:text-secondary">
+              <Layers size={13} />
+              <span className="flex items-center gap-1 text-ok">
+                <span className="h-1.5 w-1.5 rounded-full bg-ok soft-pulse" />5
+              </span>
+            </button>
+          )}
           {cta && (
             <button onClick={cta.onClick} className="ml-0.5 flex h-8 items-center gap-1.5 rounded-full bg-accent px-3.5 text-[12px] font-medium text-accentink transition-all hover:brightness-[1.06]">
               {cta.label}

@@ -199,8 +199,11 @@ export default function App() {
     return 'active'
   }
 
-  const headStages: StageItem[] =
-    mode === 'specless'
+  const headStages: StageItem[] = desktop
+    ? // The desktop is the real tool — no scripted "Intent" step; the launcher
+      // IS the first stage. Rail reads Loop → Review → Merge.
+      [{ id: 'loop', label: 'Loop', state: loopStageState(), hint: loopHint() }]
+    : mode === 'specless'
       ? [
           { id: 'intent', label: 'Intent', state: dispatched ? 'done' : 'active' },
           { id: 'loop', label: 'Loop', state: loopStageState(), hint: loopHint() },
@@ -223,7 +226,7 @@ export default function App() {
 
   useEffect(() => {
     const item = stages.find((s) => s.id === stage)
-    if (!item || item.state === 'locked') setStage('intent')
+    if (!item || item.state === 'locked') setStage(desktop ? 'loop' : 'intent')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, stage, specPhase, sim.phase, activeLoop.state.status, loopEntered, reviewApproved])
 
@@ -271,18 +274,25 @@ export default function App() {
         list.push({ id: 'go-' + s.id, group: 'Go to', label: s.label, hint: 'Jump to ' + s.label.toLowerCase(), icon: stageIcon[s.id], keywords: 'navigate open ' + s.id, run: () => setStage(s.id) }),
       )
     if (mode === 'specless') {
-      if (loopEntered && !loop.state.started) list.push({ id: 'launch', group: 'Loop', label: 'Launch loop', hint: 'Start iterating to convergence', icon: <Play size={14} />, keywords: 'run start', run: launchLoop })
-      if (runActive) list.push({ id: 'replay', group: 'Loop', label: 'Replay run', hint: 'Restart the loop from scratch', icon: <RotateCcw size={14} />, keywords: 'restart again', run: replay })
+      // The demo's scripted launch + autonomy/budget tuning are web-only. On
+      // desktop the real budget lives in the launcher; the loop is guided.
+      if (!desktop && loopEntered && !loop.state.started) list.push({ id: 'launch', group: 'Loop', label: 'Launch loop', hint: 'Start iterating to convergence', icon: <Play size={14} />, keywords: 'run start', run: launchLoop })
+      if (runActive) list.push({ id: 'replay', group: 'Loop', label: desktop ? 'New run' : 'Replay run', hint: 'Back to the launcher', icon: <RotateCcw size={14} />, keywords: 'restart again new', run: replay })
       if (executionReady && !reviewApproved) list.push({ id: 'openreview', group: 'Loop', label: 'Open review', hint: 'Inspect the converged change', icon: <Eye size={14} />, keywords: 'approve', run: () => setStage('review') })
-      ;(['guided', 'copilot', 'autopilot'] as const).forEach((a) =>
-        list.push({ id: 'aut-' + a, group: 'Tune the loop', label: 'Autonomy · ' + a, hint: 'How much the loop asks of you', icon: <SlidersHorizontal size={14} />, keywords: 'autonomy ' + a, run: () => setLoopConfig((c) => ({ ...c, autonomy: a, gates: { ...AUTONOMY_GATES[a] } })) }),
-      )
-      ;[1, 2, 3, 4, 5].forEach((n) =>
-        list.push({ id: 'bud-' + n, group: 'Tune the loop', label: `Budget · ${n} iteration${n > 1 ? 's' : ''}`, hint: 'Stop and ask after this many passes', icon: <Target size={14} />, keywords: 'budget max iterations ' + n, run: () => setLoopConfig((c) => ({ ...c, maxIterations: n })) }),
-      )
+      if (!desktop) {
+        ;(['guided', 'copilot', 'autopilot'] as const).forEach((a) =>
+          list.push({ id: 'aut-' + a, group: 'Tune the loop', label: 'Autonomy · ' + a, hint: 'How much the loop asks of you', icon: <SlidersHorizontal size={14} />, keywords: 'autonomy ' + a, run: () => setLoopConfig((c) => ({ ...c, autonomy: a, gates: { ...AUTONOMY_GATES[a] } })) }),
+        )
+        ;[1, 2, 3, 4, 5].forEach((n) =>
+          list.push({ id: 'bud-' + n, group: 'Tune the loop', label: `Budget · ${n} iteration${n > 1 ? 's' : ''}`, hint: 'Stop and ask after this many passes', icon: <Target size={14} />, keywords: 'budget max iterations ' + n, run: () => setLoopConfig((c) => ({ ...c, maxIterations: n })) }),
+        )
+      }
     }
-    list.push({ id: 'wf-loop', group: 'Workflow', label: 'Loop workflow', hint: 'Intent-driven, iterate to convergence', icon: <RefreshCw size={14} />, keywords: 'specless mode', run: () => switchMode('specless') })
-    list.push({ id: 'wf-spec', group: 'Workflow', label: 'Spec workflow', hint: 'Spec-driven, draft then execute', icon: <FileText size={14} />, keywords: 'sdd mode waterfall', run: () => switchMode('spec') })
+    // Workflow switch (Loop vs Spec) is a web-preview affordance — Spec is the demo.
+    if (!desktop) {
+      list.push({ id: 'wf-loop', group: 'Workflow', label: 'Loop workflow', hint: 'Intent-driven, iterate to convergence', icon: <RefreshCw size={14} />, keywords: 'specless mode', run: () => switchMode('specless') })
+      list.push({ id: 'wf-spec', group: 'Workflow', label: 'Spec workflow', hint: 'Spec-driven, draft then execute', icon: <FileText size={14} />, keywords: 'sdd mode waterfall', run: () => switchMode('spec') })
+    }
     THEMES.forEach((t) =>
       list.push({
         id: 'th-' + t.id,
@@ -294,7 +304,7 @@ export default function App() {
         run: () => setTheme(t.id),
       }),
     )
-    list.push({ id: 'ctx', group: 'View', label: 'Toggle context plane', hint: 'What agents read instead of a spec', icon: <Layers size={14} />, keywords: 'context sources', run: () => setContextOpen((v) => !v) })
+    if (!desktop) list.push({ id: 'ctx', group: 'View', label: 'Toggle context plane', hint: 'What agents read instead of a spec', icon: <Layers size={14} />, keywords: 'context sources', run: () => setContextOpen((v) => !v) })
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stages, mode, loopEntered, loop.state.started, runActive, executionReady, reviewApproved])
@@ -411,7 +421,7 @@ export default function App() {
         current={stage}
         onNavigate={setStage}
         activeIndex={activeStageIdx}
-        onToggleContext={() => setContextOpen((v) => !v)}
+        onToggleContext={desktop ? undefined : () => setContextOpen((v) => !v)}
         onReplay={runActive ? replay : undefined}
         cta={cta}
       />

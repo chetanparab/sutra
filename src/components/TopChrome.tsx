@@ -83,22 +83,26 @@ export default function TopChrome({
           </div>
         </a>
 
-        <div className="ml-1 flex rounded-full border border-primary/12 bg-primary/[0.03] p-0.5">
-          {(
-            [
-              { v: 'specless' as Mode, label: 'Loop' },
-              { v: 'spec' as Mode, label: 'Spec' },
-            ] as const
-          ).map((m) => (
-            <button
-              key={m.v}
-              onClick={() => onModeChange(m.v)}
-              className={cn('rounded-full px-3.5 py-1 text-[12px] font-medium transition-all', mode === m.v ? 'bg-primary/10 text-primary' : 'text-muted hover:text-secondary')}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
+        {/* Loop|Spec is a web-preview affordance — Spec mode is the scripted
+            demo. The desktop is the real tool: no mode toggle. */}
+        {!isDesktop() && (
+          <div className="ml-1 flex rounded-full border border-primary/12 bg-primary/[0.03] p-0.5">
+            {(
+              [
+                { v: 'specless' as Mode, label: 'Loop' },
+                { v: 'spec' as Mode, label: 'Spec' },
+              ] as const
+            ).map((m) => (
+              <button
+                key={m.v}
+                onClick={() => onModeChange(m.v)}
+                className={cn('rounded-full px-3.5 py-1 text-[12px] font-medium transition-all', mode === m.v ? 'bg-primary/10 text-primary' : 'text-muted hover:text-secondary')}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="absolute right-6 top-5 z-30 flex items-center gap-4 text-[11.5px] text-muted">
@@ -112,12 +116,17 @@ export default function TopChrome({
           </span>
         )}
         <EngineChip />
-        <span className="hidden items-center gap-1.5 sm:flex">
-          <Activity size={12} className="text-accent" /> p99 <span className="font-mono tnum text-secondary">{p99}ms</span>
-        </span>
-        <span className="hidden items-center gap-1.5 text-warn md:flex">
-          <CalendarClock size={12} /> freeze Fri 18:00
-        </span>
+        {/* p99 + change-freeze are scenario theater — web-demo only. */}
+        {!isDesktop() && (
+          <>
+            <span className="hidden items-center gap-1.5 sm:flex">
+              <Activity size={12} className="text-accent" /> p99 <span className="font-mono tnum text-secondary">{p99}ms</span>
+            </span>
+            <span className="hidden items-center gap-1.5 text-warn md:flex">
+              <CalendarClock size={12} /> freeze Fri 18:00
+            </span>
+          </>
+        )}
         {runTime && (
           <span className="font-mono tnum text-secondary">
             T+<span className="text-primary">{runTime}</span>
