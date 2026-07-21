@@ -48,6 +48,10 @@ Usage:
       model can use alongside the built-in file tools (repeat with ';;').
       --init-if-needed true starts a NEW project in a plain/empty folder:
       git init + an empty initial commit, instead of refusing a non-git path.
+      --provider claude-code needs NO API key: it drives your locally installed,
+      signed-in Claude Code CLI (claude.ai subscription or its key) in headless
+      mode. Build edits files through Claude Code's own file tools (no Bash);
+      --model accepts sonnet | opus | haiku | a full id | default.
       Phase 2: the full real loop — Build, commit, VERIFY BY ACTUALLY RUNNING
       your command, Reflect on the failure, iterate, until verification
       passes or the budget is spent.
@@ -200,6 +204,7 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
       signal: controller.signal,
       onEvent: ndjson ? (e) => console.log(JSON.stringify({ type: 'event', ...e })) : undefined,
       onMemo: ndjson ? (m) => console.log(JSON.stringify({ type: 'memo', ...m })) : undefined,
+      onLog: say,
     })
   } catch (err) {
     // Setup failures (not a git repo, missing API key, unknown provider/model)

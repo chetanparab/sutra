@@ -29,6 +29,13 @@ import { outputTailForMemo, runVerifyCommand, type VerifyRunResult } from '../ve
 import { isDockerAvailable, runVerifyInContainer } from '../verify/containerRunner'
 import { connectMcpServers, type McpServerConfig, type McpToolset } from '../mcp/client'
 import { resolveProvider } from '../commands/build'
+import {
+  CLAUDE_CODE_PROVIDER_ID,
+  claudeCodeBuildPrompt,
+  createClaudeCliProvider,
+  resolveClaudeBinary,
+  runClaudeCodeBuild,
+} from '../agents/claudeCode'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
@@ -99,6 +106,12 @@ export interface RunLoopParams {
   onEvent?: (event: LoopEvent) => void
   /** Fired when a reflect memo is produced, before the next iteration builds. */
   onMemo?: (memo: HermesMemo) => void
+  /**
+   * Live narration lines (claude-code mode streams Build activity through
+   * this). The CLI forwards them to stderr, which the desktop shell already
+   * renders in the live engine-output panel.
+   */
+  onLog?: (line: string) => void
 }
 
 interface LoopRecordBase {
@@ -142,7 +155,23 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
     )
   }
 
-  const provider = params.provider ?? resolveProvider(params.providerId ?? '')
+  // claude-code mode (no API key): the locally signed-in Claude Code CLI is
+  // the model. Build runs through the CLI itself; Reflect goes through a thin
+  // single-turn provider so the memo logic is reused unchanged.
+  const claudeMode = params.provider === undefined && params.providerId === CLAUDE_CODE_PROVIDER_ID
+  const claudeCost = { usd: 0 }
+  let claudeBin = ''
+  if (claudeMode) {
+    const bin = resolveClaudeBinary()
+    if (!bin) {
+      throw new Error(
+        'Claude Code CLI not found on this machine. Install it (npm install -g @anthropic-ai/claude-code), run `claude` once to sign in — or pick a provider with an API key.',
+      )
+    }
+    claudeBin = bin
+  }
+  const provider =
+    params.provider ?? (claudeMode ? createClaudeCliProvider(claudeBin, workspaceRoot, claudeCost) : resolveProvider(params.providerId ?? ''))
   const maxIterations = params.maxIterations ?? DEFAULT_MAX_ITERATIONS
   const startedAt = Date.now()
 
@@ -187,8 +216,14 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
   // (recorded), not fatal. Closed in the finally.
   let mcp: McpToolset | undefined
   if (params.mcpServers && params.mcpServers.length > 0) {
-    mcp = await connectMcpServers(params.mcpServers, (m) => record('memo', m, 'warn'))
-    if (mcp.tools.length > 0) record('memo', `MCP: ${mcp.tools.length} tool(s) available to Build`, 'muted')
+    if (claudeMode) {
+      // Claude Code manages its own tools; the engine-side MCP bridge only
+      // feeds the provider tool-use path, which claude-code mode doesn't use.
+      record('memo', 'MCP servers are skipped in Claude Code mode — configure them in Claude Code itself.', 'warn')
+    } else {
+      mcp = await connectMcpServers(params.mcpServers, (m) => record('memo', m, 'warn'))
+      if (mcp.tools.length > 0) record('memo', `MCP: ${mcp.tools.length} tool(s) available to Build`, 'muted')
+    }
   }
 
   const branchName = `sutra/loop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -211,18 +246,33 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
         ? `${params.intent}\n\nPrevious iteration's courier memo — apply this directive:\nFinding: ${priorMemo.finding}\nDirective: ${priorMemo.directive}`
         : params.intent
 
-      const buildResult = await runBuildLoop({
-        provider,
-        model: params.model,
-        intent: intentForBuild,
-        tools: createFsTools(workspaceRoot),
-        guardrails: params.guardrails,
-        signal: params.signal,
-        extraTools: mcp?.tools,
-        dispatchExtraTool: mcp ? (call) => mcp!.callTool(call.name, call.arguments) : undefined,
-      })
-      inputTokens += buildResult.totalInputTokens
-      outputTokens += buildResult.totalOutputTokens
+      if (claudeMode) {
+        const run = await runClaudeCodeBuild({
+          bin: claudeBin,
+          workspaceRoot,
+          prompt: claudeCodeBuildPrompt(intentForBuild, params.verifyCommand),
+          model: params.model,
+          maxTurns: params.guardrails?.maxToolTurns,
+          signal: params.signal,
+          onLog: params.onLog,
+        })
+        claudeCost.usd += run.costUsd
+        inputTokens += run.inputTokens
+        outputTokens += run.outputTokens
+      } else {
+        const buildResult = await runBuildLoop({
+          provider,
+          model: params.model,
+          intent: intentForBuild,
+          tools: createFsTools(workspaceRoot),
+          guardrails: params.guardrails,
+          signal: params.signal,
+          extraTools: mcp?.tools,
+          dispatchExtraTool: mcp ? (call) => mcp!.callTool(call.name, call.arguments) : undefined,
+        })
+        inputTokens += buildResult.totalInputTokens
+        outputTokens += buildResult.totalOutputTokens
+      }
 
       lastGoodSha = commitIteration(branch, iteration, params.intent.slice(0, 72))
       committedIterations = iteration
@@ -240,7 +290,7 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
           headSha: lastGoodSha,
           diff: diffSinceBranchPoint(branch),
           finalVerify: verify,
-          totalCostUsd: actualCostUsd(inputTokens, outputTokens),
+          totalCostUsd: claudeMode ? claudeCost.usd : actualCostUsd(inputTokens, outputTokens),
         }
       }
 
@@ -278,7 +328,7 @@ export async function runLoop(params: RunLoopParams): Promise<LoopOutcome> {
           headSha: lastGoodSha,
           diff: diffSinceBranchPoint(branch),
           finalVerify: verify,
-          totalCostUsd: actualCostUsd(inputTokens, outputTokens),
+          totalCostUsd: claudeMode ? claudeCost.usd : actualCostUsd(inputTokens, outputTokens),
         }
       }
     }
