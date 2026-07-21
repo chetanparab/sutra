@@ -21,6 +21,8 @@ import LoopRunView from './views/LoopRunView'
 import RealLoopRunView from './views/RealLoopRunView'
 import MergeView from './views/MergeView'
 import RealLauncher from './views/RealLauncher'
+import RealSpecView from './views/RealSpecView'
+import { draftSpec, specToIntent, type PlannedSpec } from './desktop/realLoop'
 import RealMergeView from './views/RealMergeView'
 import RealReviewView from './views/RealReviewView'
 import ReviewView from './views/ReviewView'
@@ -53,6 +55,12 @@ export default function App() {
   const [loopSubtab, setLoopSubtab] = useState<LoopSubtab>('design')
   const [loopConfig, setLoopConfig] = useState<LoopConfig>(DEFAULT_LOOP_CONFIG)
   const [reviewApproved, setReviewApproved] = useState(false)
+  // Spec mode (Phase 5+): the model's drafted spec awaiting the human's review,
+  // plus the full launch args to reuse when they approve it. Null = not drafted.
+  const [draftedSpec, setDraftedSpec] = useState<PlannedSpec | null>(null)
+  const [specBaseArgs, setSpecBaseArgs] = useState<RealLoopArgs | null>(null)
+  const [drafting, setDrafting] = useState(false)
+  const [specError, setSpecError] = useState<string | null>(null)
   const [contextOpen, setContextOpen] = useState(false)
   const [theme, setTheme] = useState<ThemeId>(() => initialTheme('analogy'))
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -111,10 +119,15 @@ export default function App() {
       parked.current[mode] = { stage, reviewApproved }
       // …and resume the mode we're entering exactly where it left off.
       setMode(m)
-      setStage(parked.current[m].stage)
-      setReviewApproved(parked.current[m].reviewApproved)
+      // A drafted spec belongs to the mode you're leaving — clear it.
+      setDraftedSpec(null)
+      setSpecError(null)
+      // On desktop both modes live at the launcher (stage 'loop'); the web demo
+      // resumes its parked stage.
+      setStage(desktop ? 'loop' : parked.current[m].stage)
+      setReviewApproved(desktop ? false : parked.current[m].reviewApproved)
     },
-    [mode, stage, reviewApproved],
+    [mode, stage, reviewApproved, desktop],
   )
 
   useEffect(() => {
@@ -156,6 +169,27 @@ export default function App() {
       // launchError is surfaced in the panel; return the user to it.
       setLoopSubtab('design')
     }
+  }
+  // Spec mode: draft a real plan (one engine call), then show it for review.
+  const doDraftSpec = async (args: RealLoopArgs) => {
+    setSpecError(null)
+    setDrafting(true)
+    try {
+      const spec = await draftSpec({ workspacePath: args.workspacePath, intent: args.intent, provider: args.provider, model: args.model, apiKey: args.apiKey, storeKey: args.storeKey })
+      setSpecBaseArgs(args)
+      setDraftedSpec(spec)
+    } catch (err) {
+      setSpecError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setDrafting(false)
+    }
+  }
+  // Approve the (edited) spec → run the real loop with it folded into the intent.
+  const buildSpec = (edited: PlannedSpec) => {
+    if (!specBaseArgs) return
+    const args = { ...specBaseArgs, intent: specToIntent(specBaseArgs.intent, edited) }
+    setDraftedSpec(null)
+    void launchReal(args)
   }
   const replay = () => {
     setReviewApproved(false)
@@ -201,8 +235,8 @@ export default function App() {
 
   const headStages: StageItem[] = desktop
     ? // The desktop is the real tool — no scripted "Intent" step; the launcher
-      // IS the first stage. Rail reads Loop → Review → Merge.
-      [{ id: 'loop', label: 'Loop', state: loopStageState(), hint: loopHint() }]
+      // IS the first stage. Rail reads Loop/Spec → Review → Merge.
+      [{ id: 'loop', label: mode === 'spec' ? 'Spec' : 'Loop', state: loopStageState(), hint: loopHint() }]
     : mode === 'specless'
       ? [
           { id: 'intent', label: 'Intent', state: dispatched ? 'done' : 'active' },
@@ -288,11 +322,9 @@ export default function App() {
         )
       }
     }
-    // Workflow switch (Loop vs Spec) is a web-preview affordance — Spec is the demo.
-    if (!desktop) {
-      list.push({ id: 'wf-loop', group: 'Workflow', label: 'Loop workflow', hint: 'Intent-driven, iterate to convergence', icon: <RefreshCw size={14} />, keywords: 'specless mode', run: () => switchMode('specless') })
-      list.push({ id: 'wf-spec', group: 'Workflow', label: 'Spec workflow', hint: 'Spec-driven, draft then execute', icon: <FileText size={14} />, keywords: 'sdd mode waterfall', run: () => switchMode('spec') })
-    }
+    // Two real workflows — switch between Loop and Spec.
+    list.push({ id: 'wf-loop', group: 'Workflow', label: 'Loop workflow', hint: 'Say it, iterate to convergence', icon: <RefreshCw size={14} />, keywords: 'specless mode', run: () => switchMode('specless') })
+    list.push({ id: 'wf-spec', group: 'Workflow', label: 'Spec workflow', hint: 'Plan → review → build', icon: <FileText size={14} />, keywords: 'sdd spec driven', run: () => switchMode('spec') })
     THEMES.forEach((t) =>
       list.push({
         id: 'th-' + t.id,
@@ -385,9 +417,21 @@ export default function App() {
               <LoopRunView loop={activeLoop} onOpenReview={() => setStage('review')} />
             )
           ) : desktop ? (
-            // Desktop is a real tool: the launcher, nothing scripted. The demo
-            // design surface (LoopDesignView) is web-preview only.
-            <RealLauncher running={real.running} launchError={real.meta.launchError} onLaunch={(args) => void launchReal(args)} />
+            // Desktop is a real tool. Loop mode → the launcher runs the loop.
+            // Spec mode → the launcher drafts a plan, then RealSpecView reviews
+            // it before the same loop builds it. Nothing scripted either way.
+            mode === 'spec' && draftedSpec ? (
+              <RealSpecView intent={specBaseArgs?.intent ?? ''} draft={draftedSpec} building={real.running} onBuild={buildSpec} onDiscard={() => setDraftedSpec(null)} />
+            ) : (
+              <RealLauncher
+                mode={mode}
+                running={real.running}
+                drafting={drafting}
+                launchError={real.meta.launchError ?? specError}
+                onLaunch={(args) => void launchReal(args)}
+                onDraftSpec={(args) => void doDraftSpec(args)}
+              />
+            )
           ) : (
             <LoopDesignView config={loopConfig} onChange={setLoopConfig} onLaunch={launchLoop} />
           ))}

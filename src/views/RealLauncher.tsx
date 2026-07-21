@@ -83,14 +83,22 @@ const PROVIDERS = [
 ]
 
 export default function RealLauncher({
+  mode,
   running,
+  drafting,
   launchError,
   onLaunch,
+  onDraftSpec,
 }: {
+  /** 'specless' launches the loop directly; 'spec' drafts a reviewable plan first. */
+  mode: 'specless' | 'spec'
   running: boolean
+  drafting?: boolean
   launchError: string | null
   onLaunch: (args: RealLoopArgs) => void
+  onDraftSpec?: (args: RealLoopArgs) => void
 }) {
+  const specMode = mode === 'spec'
   const [workspacePath, setWorkspacePath] = useState('')
   const [intent, setIntent] = useState('')
   const [provider, setProvider] = useState('claude-code')
@@ -135,45 +143,59 @@ export default function RealLauncher({
     if (picked) setWorkspacePath(picked)
   }
 
-  const doLaunch = () => {
-    onLaunch({
-      workspacePath,
-      intent: intent.trim(),
-      provider,
-      model: model.trim(),
-      consentToRun: consent,
-      maxIterations,
-      // The engine figures these out — no user input:
-      //   verifyCmd omitted  → auto-detected after each Build
-      //   initIfNeeded true  → empty folder scaffolds; existing repo untouched
-      initIfNeeded: true,
-      apiKey: keyless ? undefined : apiKey.trim() || undefined,
-      storeKey: !keyless && apiKey.trim() !== '' ? storeKey : undefined,
-      verifyMode: useContainer ? 'container' : 'local',
-      verifyImage: useContainer ? verifyImage.trim() || undefined : undefined,
-      verifyAllowNetwork: useContainer ? allowNetwork : undefined,
-      mcpServers: mcpText
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean),
-    })
+  const buildArgs = (): RealLoopArgs => ({
+    workspacePath,
+    intent: intent.trim(),
+    provider,
+    model: model.trim(),
+    consentToRun: consent,
+    maxIterations,
+    // The engine figures these out — no user input:
+    //   verifyCmd omitted  → auto-detected after each Build
+    //   initIfNeeded true  → empty folder scaffolds; existing repo untouched
+    initIfNeeded: true,
+    apiKey: keyless ? undefined : apiKey.trim() || undefined,
+    storeKey: !keyless && apiKey.trim() !== '' ? storeKey : undefined,
+    verifyMode: useContainer ? 'container' : 'local',
+    verifyImage: useContainer ? verifyImage.trim() || undefined : undefined,
+    verifyAllowNetwork: useContainer ? allowNetwork : undefined,
+    mcpServers: mcpText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean),
+  })
+
+  const dropTypedKey = () => {
     if (!keyless && apiKey.trim() !== '' && storeKey) {
       setApiKey('')
       setHasStoredKey(true)
     }
   }
 
+  const doLaunch = () => {
+    onLaunch(buildArgs())
+    dropTypedKey()
+  }
+
+  // Spec mode: hand the full args (so the eventual build has consent/budget/
+  // isolation), draft the plan first.
+  const doDraft = () => {
+    onDraftSpec?.(buildArgs())
+    dropTypedKey()
+  }
+
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-2xl px-6 pb-28 pt-20">
         <div className="anim-rise mb-7">
-          <Label>Run the loop</Label>
+          <Label>{specMode ? 'Plan, then build' : 'Run the loop'}</Label>
           <h1 className="serif-hero balance mt-3.5 font-display text-[clamp(26px,3.4vw,34px)] font-semibold leading-[1.05] tracking-[-0.03em]">
             What should Sutra <span className="italic font-medium text-accent">build or change?</span>
           </h1>
           <p className="pretty mt-2.5 max-w-[58ch] text-[13.5px] leading-[1.6] text-secondary">
-            Point it at a folder and say what you want. It edits on a shadow branch, checks its own work, and hands you a
-            real branch to merge — your code is never touched until you do.
+            {specMode
+              ? 'Say what you want and Sutra drafts a real spec — requirements, approach, tasks — for you to review and edit before it writes a line. Then the same loop builds it and verifies its own work.'
+              : 'Point it at a folder and say what you want. It edits on a shadow branch, checks its own work, and hands you a real branch to merge — your code is never touched until you do.'}
           </p>
         </div>
 
@@ -356,11 +378,17 @@ export default function RealLauncher({
 
           <div className="flex items-center justify-between gap-3 border-t border-primary/[0.08] bg-primary/[0.015] px-5 py-3.5">
             <span className="text-[11px] text-muted">
-              {maxIterations} iteration{maxIterations === 1 ? '' : 's'} · abort anytime
+              {specMode ? 'You review the plan before anything is built' : `${maxIterations} iteration${maxIterations === 1 ? '' : 's'} · abort anytime`}
             </span>
-            <Button variant="primary" size="lg" disabled={!complete || running} onClick={doLaunch}>
-              <Play size={14} /> {running ? 'Loop running…' : 'Launch'}
-            </Button>
+            {specMode ? (
+              <Button variant="primary" size="lg" disabled={!complete || drafting} onClick={doDraft}>
+                <Sparkles size={14} /> {drafting ? 'Drafting the spec…' : 'Draft spec'}
+              </Button>
+            ) : (
+              <Button variant="primary" size="lg" disabled={!complete || running} onClick={doLaunch}>
+                <Play size={14} /> {running ? 'Loop running…' : 'Launch'}
+              </Button>
+            )}
           </div>
         </section>
       </div>

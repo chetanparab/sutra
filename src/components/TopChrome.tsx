@@ -83,26 +83,24 @@ export default function TopChrome({
           </div>
         </a>
 
-        {/* Loop|Spec is a web-preview affordance — Spec mode is the scripted
-            demo. The desktop is the real tool: no mode toggle. */}
-        {!isDesktop() && (
-          <div className="ml-1 flex rounded-full border border-primary/12 bg-primary/[0.03] p-0.5">
-            {(
-              [
-                { v: 'specless' as Mode, label: 'Loop' },
-                { v: 'spec' as Mode, label: 'Spec' },
-              ] as const
-            ).map((m) => (
-              <button
-                key={m.v}
-                onClick={() => onModeChange(m.v)}
-                className={cn('rounded-full px-3.5 py-1 text-[12px] font-medium transition-all', mode === m.v ? 'bg-primary/10 text-primary' : 'text-muted hover:text-secondary')}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Two real workflows: Loop (go straight) and Spec (plan → review →
+            build). Both real on desktop; both drive the web preview too. */}
+        <div className="ml-1 flex rounded-full border border-primary/12 bg-primary/[0.03] p-0.5">
+          {(
+            [
+              { v: 'specless' as Mode, label: 'Loop' },
+              { v: 'spec' as Mode, label: 'Spec' },
+            ] as const
+          ).map((m) => (
+            <button
+              key={m.v}
+              onClick={() => onModeChange(m.v)}
+              className={cn('rounded-full px-3.5 py-1 text-[12px] font-medium transition-all', mode === m.v ? 'bg-primary/10 text-primary' : 'text-muted hover:text-secondary')}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="absolute right-6 top-5 z-30 flex items-center gap-4 text-[11.5px] text-muted">
