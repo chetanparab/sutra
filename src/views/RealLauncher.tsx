@@ -8,7 +8,7 @@
  * No scripted scenario, no idempotency, no "demo loop" — that lives only on the
  * web preview (LoopDesignView). This screen never imports it.
  */
-import { Boxes, ChevronDown, Cpu, FolderGit2, FolderOpen, KeyRound, Play, Plug, ShieldCheck, Sparkles, TriangleAlert } from 'lucide-react'
+import { Boxes, ChevronDown, Cpu, FolderGit2, FolderOpen, KeyRound, Play, Plug, ShieldAlert, ShieldCheck, Sparkles, TriangleAlert } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Button, Label, Stepper, Toggle, cn } from '../components/ui'
 import { keychainDelete, keychainStatus, pickWorkspaceFolder, type RealLoopArgs } from '../desktop/realLoop'
@@ -106,7 +106,6 @@ export default function RealLauncher({
   const [apiKey, setApiKey] = useState('')
   const [storeKey, setStoreKey] = useState(true)
   const [hasStoredKey, setHasStoredKey] = useState(false)
-  const [consent, setConsent] = useState(false)
   const [maxIterations, setMaxIterations] = useState(3)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [useContainer, setUseContainer] = useState(false)
@@ -131,7 +130,7 @@ export default function RealLauncher({
   const keyName = activeProvider?.keyName ?? 'API key'
   const keyless = activeProvider?.keyName === ''
   const isCustomModel = !(activeProvider?.models ?? []).some((m) => m.id === model)
-  const complete = workspacePath !== '' && intent.trim() !== '' && model.trim() !== '' && consent
+  const complete = workspacePath !== '' && intent.trim() !== '' && model.trim() !== ''
 
   const onProviderChange = (id: string) => {
     setProvider(id)
@@ -148,7 +147,9 @@ export default function RealLauncher({
     intent: intent.trim(),
     provider,
     model: model.trim(),
-    consentToRun: consent,
+    // Clicking Launch / Build is the consent — the safety note is shown right
+    // there, and the engine still refuses without this true.
+    consentToRun: true,
     maxIterations,
     // The engine figures these out — no user input:
     //   verifyCmd omitted  → auto-detected after each Build
@@ -305,17 +306,6 @@ export default function RealLauncher({
               </Field>
             )}
 
-            {/* Consent — the one deliberate moment */}
-            <div className="flex items-start justify-between gap-4 rounded-[var(--radius)] border border-warn/30 bg-warn/[0.06] p-3.5">
-              <span className="text-[12px] leading-relaxed text-secondary">
-                <span className="font-medium text-primary">Run this project’s checks on my machine.</span>{' '}
-                {useContainer
-                  ? 'They run inside an isolated container (below) — but it is still your code executing.'
-                  : 'Sutra will run the project’s tests (and code the model just wrote) here. Only proceed on a repo you trust.'}
-              </span>
-              <Toggle checked={consent} onChange={setConsent} />
-            </div>
-
             {/* Advanced */}
             <div className="overflow-hidden rounded-[var(--radius)] border border-primary/[0.1]">
               <button
@@ -376,9 +366,17 @@ export default function RealLauncher({
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t border-primary/[0.08] bg-primary/[0.015] px-5 py-3.5">
-            <span className="text-[11px] text-muted">
-              {specMode ? 'You review the plan before anything is built' : `${maxIterations} iteration${maxIterations === 1 ? '' : 's'} · abort anytime`}
+          <div className="flex items-center justify-between gap-4 border-t border-primary/[0.08] bg-primary/[0.015] px-5 py-3.5">
+            <span className="flex items-start gap-1.5 text-[11px] leading-snug text-muted">
+              <ShieldAlert size={13} className="mt-px shrink-0 text-warn" />
+              {specMode ? (
+                <>Drafting a plan runs nothing — you’ll confirm before it builds.</>
+              ) : (
+                <>
+                  Launching runs this project’s tests — and the code the model writes — on your machine. Use a repo you
+                  trust.
+                </>
+              )}
             </span>
             {specMode ? (
               <Button variant="primary" size="lg" disabled={!complete || drafting} onClick={doDraft}>
