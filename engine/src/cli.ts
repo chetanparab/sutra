@@ -15,6 +15,8 @@ import { plan } from './plan/plan'
 import { resolveProvider } from './commands/build'
 import { CLAUDE_CODE_PROVIDER_ID, createClaudeCliProvider, resolveClaudeBinary } from './agents/claudeCode'
 import { resolve as resolvePath } from 'node:path'
+import { ENGINE_VERSION } from './version'
+import { startServer } from './serve/server'
 
 function usage(): never {
   console.error(`sutra-engine — Phase 0/1/2 CLI (see ROADMAP.md)
@@ -69,6 +71,12 @@ Usage:
       approach and a task list — grounded in the repo, for you to review before
       any code is written. No file writes, no execution. The loop runs the
       approved spec afterwards. --events ndjson emits one {type:'spec',…} line.
+
+  npm run engine -- serve [--port 4317] [--token <token>]
+      Web real-mode: run the engine as a localhost HTTP server so the WEB IDE
+      can run REAL loops (your files, your tests, your model) — a browser tab
+      can't do that itself. Prints a token the web IDE must present; only
+      localhost, only with the token. Ctrl+C stops it.
 
   npm run engine -- merge <workspace-path> <shadow-branch> --into <target-branch> [--pr true]
       Phase 3: land a finished shadow branch — fast-forward, or rebase then
@@ -307,7 +315,6 @@ async function runLoopCommand(positional: string[], flags: Record<string, string
  * protocol changes shape — the shell refuses to drive an engine whose major
  * version it doesn't recognize (wired with the real IPC in the next step).
  */
-const ENGINE_VERSION = '2.0.0-beta.3'
 
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2)
@@ -346,6 +353,24 @@ async function main(): Promise<void> {
     case 'plan': {
       const { positional, flags } = parseArgs(rest)
       await runPlanCommand(positional, flags)
+      return
+    }
+    case 'serve': {
+      const { flags } = parseArgs(rest)
+      const port = flags.port ? Number(flags.port) : 4317
+      const { token } = startServer({
+        port,
+        token: flags.token,
+        onListening: ({ port, token }) => {
+          console.log(`\nSutra engine serving on http://localhost:${port} — the web IDE can now run REAL loops.`)
+          console.log('Open the web IDE, choose "This machine", and paste this token:\n')
+          console.log(`  ${token}\n`)
+          console.log('Keep this terminal open. Ctrl+C to stop. Only the web IDE (with the token) can drive it.')
+        },
+      })
+      void token
+      // Keep the process alive; the server owns the event loop.
+      await new Promise(() => {})
       return
     }
     case 'merge': {

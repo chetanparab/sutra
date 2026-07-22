@@ -1,6 +1,7 @@
 import { Activity, CalendarClock, Command, Cpu, Home } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { fetchEngineVersion, isDesktop, type EngineInfo } from '../desktop/engine'
+import { isLocalEngine } from '../desktop/localEngine'
 import { APP_NAME } from '../scenario'
 import type { Mode } from '../types'
 import ThemeSwitcher, { type ThemeId } from './ThemeSwitcher'
@@ -104,18 +105,18 @@ export default function TopChrome({
       </div>
 
       <div className="absolute right-6 top-5 z-30 flex items-center gap-4 text-[11.5px] text-muted">
-        {isDesktop() ? (
-          <span className="flex items-center gap-1.5 text-ok">
+        {isDesktop() || isLocalEngine() ? (
+          <span className="flex items-center gap-1.5 text-ok" title={isDesktop() ? 'Desktop app — real' : 'Connected to a local engine — real'}>
             <span className="h-1.5 w-1.5 rounded-full bg-ok soft-pulse" /> live
           </span>
         ) : (
-          <span className="flex items-center gap-1.5 text-warn" title="This browser page is a demo — download the desktop app to run your own repo for real">
+          <span className="flex items-center gap-1.5 text-warn" title="This browser page is a demo — connect a local engine or download the desktop app to run for real">
             <span className="h-1.5 w-1.5 rounded-full bg-warn" /> demo
           </span>
         )}
         <EngineChip />
-        {/* p99 + change-freeze are scenario theater — web-demo only. */}
-        {!isDesktop() && (
+        {/* p99 + change-freeze are scenario theater — demo (unconnected web) only. */}
+        {!isDesktop() && !isLocalEngine() && (
           <>
             <span className="hidden items-center gap-1.5 sm:flex">
               <Activity size={12} className="text-accent" /> p99 <span className="font-mono tnum text-secondary">{p99}ms</span>

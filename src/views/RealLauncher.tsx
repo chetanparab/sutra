@@ -12,6 +12,7 @@ import { Boxes, ChevronDown, Cpu, FolderGit2, FolderOpen, KeyRound, Play, Plug, 
 import { useEffect, useState, type ReactNode } from 'react'
 import { Button, Label, Stepper, Toggle, cn } from '../components/ui'
 import { keychainDelete, keychainStatus, pickWorkspaceFolder, type RealLoopArgs } from '../desktop/realLoop'
+import { isDesktop } from '../desktop/engine'
 
 const FIELD =
   'w-full rounded-[var(--radius)] border border-primary/[0.14] bg-primary/[0.02] px-3.5 py-2.5 text-[13px] text-primary outline-none transition-all placeholder:text-faint hover:border-primary/25 focus:border-accent/55 focus:bg-primary/[0.04] focus:ring-2 focus:ring-accent/15'
@@ -204,7 +205,16 @@ export default function RealLauncher({
           <div className="space-y-5 p-5">
             {/* Folder — new vs existing is the engine's problem, not the user's */}
             <Field icon={<FolderGit2 size={12} className="text-muted" />} label="Folder" hint="new or existing — Sutra figures it out">
-              {workspacePath === '' ? (
+              {!isDesktop() ? (
+                // Web (connected to a local engine): no native dialog — type the
+                // path on the machine running `sutra serve`.
+                <input
+                  value={workspacePath}
+                  onChange={(e) => setWorkspacePath(e.target.value)}
+                  placeholder="/Users/you/code/my-project — a path on the machine running the engine"
+                  className={cn(FIELD, 'font-mono text-[12px]')}
+                />
+              ) : workspacePath === '' ? (
                 <button
                   onClick={pick}
                   className="flex w-full items-center justify-center gap-2 rounded-[var(--radius)] border border-dashed border-primary/25 bg-primary/[0.02] px-3.5 py-3.5 text-[12.5px] text-muted transition-all hover:border-accent/45 hover:bg-accent/[0.03] hover:text-secondary"

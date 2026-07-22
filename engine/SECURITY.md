@@ -54,6 +54,25 @@ boundary with a scripted model that *obeys* the fixture's injection
   nothing an MCP server says relaxes the hard boundaries. Its tools can do
   whatever that server allows — trust an MCP server the way you'd trust any
   dependency you add.
+- **`sutra serve` — the local engine over HTTP (web real-mode, Phase 5+).** By
+  design this runs the loop — which runs your project's own tests — on your
+  machine, driven by the web IDE. That is the same power the desktop app and the
+  CLI already have; `serve` adds a *network* surface (localhost) to it, so it is
+  hardened accordingly and its scope is deliberately narrow:
+  - **Localhost only.** The server binds to `127.0.0.1` — never a routable
+    interface — so nothing off your machine can reach it.
+  - **Token-gated.** Every mutating route requires a random token printed once at
+    startup and compared in constant time; a stray web page can reach localhost
+    but cannot present the token. CORS is allow-listed to localhost and the
+    official site, as defence in depth on top of the token.
+  - **No arbitrary command over the wire.** The HTTP API does **not** accept a
+    verify command — the engine auto-detects the project's *own* test command
+    from its files. A token-holder can point the loop at a local path and run
+    that repo's own checks (the same trust as running them yourself), but cannot
+    inject a command to execute.
+  - Anyone who holds the token can drive the engine, so treat the token like a
+    local secret; stop the server (Ctrl+C) when you're done. CodeQL flags the
+    localhost→exec path — that flow is this feature's reviewed, mitigated intent.
 
 ## Keeping this honest
 
