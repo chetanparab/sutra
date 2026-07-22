@@ -14,7 +14,7 @@
  * deployed site) can connect.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { randomBytes } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import type { LlmProvider } from '../../../src/contracts/llm'
 import { runLoop } from '../loop/runLoop'
 import { plan } from '../plan/plan'
@@ -40,23 +40,34 @@ export function startServer(opts: ServeOptions): { close: () => Promise<void>; t
   let running: RunningLoop | null = null
 
   const server = createServer((req, res) => {
-    void handle(req, res).catch((err) => {
-      if (!res.headersSent) sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) })
+    void handle(req, res).catch(() => {
+      // Never leak internals to the caller; the route handlers send the
+      // specific, safe messages the web needs.
+      if (!res.headersSent) sendJson(res, 500, { error: 'Internal error.' })
       else res.end()
     })
   })
 
+  // Only the trusted surfaces may cross-origin: localhost dev, and the deployed
+  // site. An arbitrary web page gets no ACAO header, so the browser blocks it —
+  // defence in depth on top of the token.
+  const ALLOWED_ORIGIN = [/^https?:\/\/localhost(:\d+)?$/, /^https?:\/\/127\.0\.0\.1(:\d+)?$/, /^https:\/\/sutra\.theanalogyarchitect\.com$/]
   function cors(req: IncomingMessage, res: ServerResponse) {
     const origin = req.headers.origin
-    // Reflect the caller's origin (the token is the real auth). No credentials.
-    if (origin) res.setHeader('Access-Control-Allow-Origin', origin)
-    res.setHeader('Vary', 'Origin')
+    if (origin && ALLOWED_ORIGIN.some((re) => re.test(origin))) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Vary', 'Origin')
+    }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Sutra-Token')
   }
 
+  const tokenBuf = Buffer.from(token)
   function authed(req: IncomingMessage): boolean {
-    return req.headers['x-sutra-token'] === token
+    const provided = req.headers['x-sutra-token']
+    if (typeof provided !== 'string') return false
+    const buf = Buffer.from(provided)
+    return buf.length === tokenBuf.length && timingSafeEqual(buf, tokenBuf)
   }
 
   async function handle(req: IncomingMessage, res: ServerResponse) {
@@ -137,7 +148,9 @@ export function startServer(opts: ServeOptions): { close: () => Promise<void>; t
         intent: String(body.intent ?? ''),
         providerId: String(body.provider ?? ''),
         model: String(body.model ?? 'default'),
-        verifyCommand: body.verifyCmd ? String(body.verifyCmd) : undefined,
+        // Deliberately NOT accepting a verify command over HTTP — the web can't
+        // inject an arbitrary command to run. The engine auto-detects the
+        // project's own test command (npm test / cargo test / …) from the files.
         consentToRun: true,
         maxIterations: Number(body.maxIterations ?? 3),
         initIfNeeded: body.initIfNeeded === true,
