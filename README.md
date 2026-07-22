@@ -30,11 +30,12 @@ click merge.
 
 - **🖥️ Desktop app** — the real thing. Your repo, your model, your test command.
   Runs a real loop end to end. **[Download for macOS / Linux →](https://github.com/chetanparab/sutra/releases)**
-- **🌐 Web demo** — a scripted, in-browser preview of one built-in scenario so
-  you can *see* the loop converge (`npm run dev`, or the deployed build linked
-  from this repo's homepage). It can't run your repo: the real engine needs your
-  files, git and tests running on your machine, not in a browser tab. Great for a
-  first look; download the app for real work.
+- **🌐 Web** — a scripted, in-browser preview of one built-in scenario so you can
+  *see* the loop converge (`npm run dev`, or the deployed build linked from this
+  repo's homepage). A browser tab can't run your repo by itself — but run
+  **`npx sutra-engine serve`** on your machine and the web IDE connects to it and
+  runs **real** loops (your files, your tests, your model). Same surfaces as the
+  desktop; the local engine does the work.
 
 ## What makes it different
 

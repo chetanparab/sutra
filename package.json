@@ -14,6 +14,7 @@
     "eval:task1": "tsx engine/evals/run-benchmark.ts",
     "eval:task2": "tsx engine/evals/run-benchmark-task2.ts",
     "sidecar": "node engine/scripts/build-sidecar.mjs",
+    "build:engine-npm": "node engine/scripts/build-npm.mjs",
     "tauri": "tauri",
     "desktop:dev": "npm run sidecar && tauri dev",
     "desktop:build": "tauri build"

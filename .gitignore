@@ -46,3 +46,4 @@ dist-sidecar/
 src-tauri/target/
 src-tauri/gen/
 .cargo/
+engine-npm/
