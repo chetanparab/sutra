@@ -11,7 +11,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { resolveClaudeBinary } from './claudeCode'
+import { resolveClaudeBinary, runClaudeCodeBuild } from './claudeCode'
 import { runLoop } from '../loop/runLoop'
 
 const isWindows = process.platform === 'win32'
@@ -54,6 +54,31 @@ test('resolveClaudeBinary honors SUTRA_CLAUDE_BIN, and a broken override falls t
     assert.ok(fallback === null || typeof fallback === 'string')
   } finally {
     rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('an expired-session error becomes an actionable "sign in again" message', { skip: isWindows }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sutra-claude-auth-'))
+  const ws = mkdtempSync(join(tmpdir(), 'sutra-claude-ws-'))
+  try {
+    const bin = join(dir, 'claude')
+    writeFileSync(
+      bin,
+      `#!/bin/sh
+if [ "$1" = "--version" ]; then echo "9.9.9 (stub)"; exit 0; fi
+cat >/dev/null
+echo '{"type":"result","subtype":"error","is_error":true,"result":"Failed to authenticate: OAuth session expired and could not be refreshed"}'
+`,
+      'utf8',
+    )
+    chmodSync(bin, 0o755)
+    await assert.rejects(
+      runClaudeCodeBuild({ bin, workspaceRoot: ws, prompt: 'x' }),
+      /sign in again/i,
+    )
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+    rmSync(ws, { recursive: true, force: true })
   }
 })
 
