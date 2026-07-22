@@ -4,10 +4,11 @@
 
 ### The loop-engineering IDE
 
-**Software, engineered as a loop.** Point it at a real repo, describe a change,
-and a real **Sense → Build → Verify → Reflect** loop iterates — with your own
-LLM — until your tests actually pass, then hands you a branch to review and
-merge. You conduct; the loop converges.
+**Software, engineered as a loop.** Point it at a repo — or an empty folder —
+describe a change, and a real **Sense → Build → Verify → Reflect** loop iterates
+until your tests actually pass, then hands you a branch to review and merge.
+Bring your own model, or run it on your local **Claude Code** sign-in — no API
+key. You conduct; the loop converges.
 
 [![CI](https://github.com/chetanparab/sutra/actions/workflows/ci.yml/badge.svg)](https://github.com/chetanparab/sutra/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/chetanparab/sutra/actions/workflows/codeql.yml/badge.svg)](https://github.com/chetanparab/sutra/actions/workflows/codeql.yml)
@@ -37,16 +38,26 @@ click merge.
 
 ## What makes it different
 
-- **A real loop, not one shot** — Build → commit → **run your verify command** →
-  Reflect on the failure → iterate, until it passes or the iteration budget is
-  spent. Failures carry information into the next pass (a "Hermes memo").
-- **Bring your own LLM** — Anthropic or any OpenAI-compatible endpoint (OpenAI,
-  Groq, Ollama, …). Your key lives in your OS keychain, reaches the engine as an
-  environment variable only — never argv, never plaintext on disk, never logged.
-- **Verify for real, optionally isolated** — Verify runs *your* command (the one
-  you'd run yourself; the model can never author it). Run it locally, or **inside
-  a throwaway Docker container** with only the workspace mounted and the network
-  off, for repos you don't fully trust.
+- **A real loop, not one shot** — Build → commit → **run your tests** → Reflect on
+  the failure → iterate, until it passes or the iteration budget is spent.
+  Failures carry information into the next pass (a "Hermes memo").
+- **No API key required** — Sutra can drive your locally installed, signed-in
+  **Claude Code** CLI, so a claude.ai subscription is enough and no key ever
+  passes through Sutra. Or **bring your own** — Anthropic or any OpenAI-compatible
+  endpoint (OpenAI, Groq, Ollama, …), stored in your OS keychain and handed to the
+  engine as an environment variable only — never argv, never plaintext, never logged.
+- **Two real workflows** — **Loop**: say what you want, iterate to green.
+  **Spec**: the model drafts real requirements, an approach and tasks; you review
+  and edit them; then the same loop builds and verifies them. Neither is scripted.
+- **New project or existing repo** — point it at a repository, or an **empty
+  folder** and it initializes git and scaffolds from scratch. It works out which;
+  you don't configure anything.
+- **Verify for real — figured out for you** — Verify **auto-detects** how to check
+  your project (`npm test`, `cargo test`, `pytest`, `go test`, a build/lint
+  script, a Makefile target…), so you don't type a command. It runs *your* tests
+  (the model can never author them) locally, or **inside a throwaway Docker
+  container** with only the workspace mounted and the network off. Nothing to
+  detect? It says so honestly instead of faking a pass.
 - **Bring your own agent (MCP)** — plug in your own Model Context Protocol
   servers; their tools join the Build agent alongside the built-in file tools.
 - **Safe by construction** — the loop works on a generated *shadow branch* and
