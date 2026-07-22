@@ -6,7 +6,7 @@
  * reuses the loop, it doesn't fork it. Nothing is scripted; every line here came
  * from the engine's `plan` call.
  */
-import { ArrowRight, ListChecks, Plus, RotateCcw, Sparkles, Target, X } from 'lucide-react'
+import { ArrowRight, ListChecks, Plus, RotateCcw, ShieldAlert, Sparkles, Target, X } from 'lucide-react'
 import { useState } from 'react'
 import { Button, Label, Slab, cn } from '../components/ui'
 import type { PlannedSpec } from '../desktop/realLoop'
@@ -119,13 +119,19 @@ export default function RealSpecView({
           </button>
         </Slab>
 
-        <div className="mt-6 flex items-center justify-between gap-3">
+        <div className="mt-6 flex items-center justify-between gap-4">
           <Button variant="ghost" onClick={onDiscard} disabled={building}>
             <RotateCcw size={13} /> Discard &amp; re-plan
           </Button>
-          <Button variant="primary" size="lg" disabled={!canBuild || building} onClick={() => onBuild(clean)}>
-            {building ? 'Building…' : 'Build this plan'} <ArrowRight size={14} />
-          </Button>
+          <div className="flex items-center gap-3">
+            <span className="hidden max-w-[26ch] items-start gap-1.5 text-[11px] leading-snug text-muted sm:flex">
+              <ShieldAlert size={13} className="mt-px shrink-0 text-warn" />
+              Building runs the project’s tests and the model’s code on your machine.
+            </span>
+            <Button variant="primary" size="lg" disabled={!canBuild || building} onClick={() => onBuild(clean)}>
+              {building ? 'Building…' : 'Build this plan'} <ArrowRight size={14} />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
