@@ -45,8 +45,8 @@ export default function HeroOrbit() {
         memoCount={loop.state.memos.length}
       />
       <div className="mt-1 flex items-center gap-2 rounded-full border border-primary/12 bg-primary/[0.03] px-3 py-1 text-[11px] text-secondary">
-        <span className="h-1.5 w-1.5 rounded-full bg-ok soft-pulse" />
-        live — the real loop engine, running on this page
+        <span className="h-1.5 w-1.5 rounded-full bg-warn soft-pulse" />
+        the loop, visualized — a preview of a run
       </div>
     </div>
   )
