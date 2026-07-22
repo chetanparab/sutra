@@ -19,6 +19,8 @@ import {
   type RealLoopArgs,
   type RealLoopHandle,
 } from '../desktop/realLoop'
+import { isDesktop } from '../desktop/engine'
+import { isLocalEngine, startRealLoopHttp } from '../desktop/localEngine'
 import type { HermesMemo, IterationRecord, LoopEvent, LoopPhase, LoopState, SignalState } from './types'
 import type { Loop } from './useLoop'
 
@@ -119,7 +121,10 @@ export function useRealLoop(): RealLoopController {
     setNow(Date.now())
 
     try {
-      handleRef.current = await startRealLoop(args, {
+      // Desktop drives the engine over Tauri; the web drives a local `sutra
+      // serve` over HTTP. Same handlers, same NDJSON protocol either way.
+      const start = !isDesktop() && isLocalEngine() ? startRealLoopHttp : startRealLoop
+      handleRef.current = await start(args, {
         onEvent: ingestEvent,
         onMemo: (memo) => setAccum((prev) => ({ ...prev, memos: [...prev.memos, memo] })),
         onOutcome: (outcome) =>

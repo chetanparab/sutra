@@ -23,6 +23,8 @@ import MergeView from './views/MergeView'
 import RealLauncher from './views/RealLauncher'
 import RealSpecView from './views/RealSpecView'
 import { draftSpec, specToIntent, type PlannedSpec } from './desktop/realLoop'
+import { isLocalEngine, draftSpecHttp } from './desktop/localEngine'
+import ConnectMachine from './views/ConnectMachine'
 import RealMergeView from './views/RealMergeView'
 import RealReviewView from './views/RealReviewView'
 import ReviewView from './views/ReviewView'
@@ -45,8 +47,11 @@ export default function App() {
   // The desktop shell's home is the real-repo launcher, not the scripted-demo
   // intent view: a desktop user should land on the folder picker + verify +
   // consent panel directly. The web demo keeps its Intent-first flow.
-  const desktop = isDesktop()
+  // "Real mode" = the desktop shell, OR a web session connected to a local
+  // `sutra serve` engine. Both drive the real loop; the transport differs.
+  const desktop = isDesktop() || isLocalEngine()
   const [engineMode, setEngineMode] = useState<'demo' | 'real'>(desktop ? 'real' : 'demo')
+  const [connectOpen, setConnectOpen] = useState(false)
   const activeLoop = engineMode === 'real' ? real.loop : loop
   const [mode, setMode] = useState<Mode>('specless')
   const [stage, setStage] = useState<StageId>(desktop ? 'loop' : 'intent')
@@ -175,7 +180,8 @@ export default function App() {
     setSpecError(null)
     setDrafting(true)
     try {
-      const spec = await draftSpec({ workspacePath: args.workspacePath, intent: args.intent, provider: args.provider, model: args.model, apiKey: args.apiKey, storeKey: args.storeKey })
+      const draft = !isDesktop() && isLocalEngine() ? draftSpecHttp : draftSpec
+      const spec = await draft({ workspacePath: args.workspacePath, intent: args.intent, provider: args.provider, model: args.model, apiKey: args.apiKey, storeKey: args.storeKey })
       setSpecBaseArgs(args)
       setDraftedSpec(spec)
     } catch (err) {
@@ -190,6 +196,15 @@ export default function App() {
     const args = { ...specBaseArgs, intent: specToIntent(specBaseArgs.intent, edited) }
     setDraftedSpec(null)
     void launchReal(args)
+  }
+  // Web real-mode: after connecting to a local `sutra serve`, drop into the
+  // real launcher (same as the desktop's front door).
+  const onConnectedToEngine = () => {
+    setConnectOpen(false)
+    setEngineMode('real')
+    setLoopEntered(true)
+    setLoopSubtab('design')
+    setStage('loop')
   }
   const replay = () => {
     setReviewApproved(false)
@@ -471,6 +486,16 @@ export default function App() {
       />
       <ContextDrawer open={contextOpen} onClose={() => setContextOpen(false)} />
       <Conductor open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
+      <ConnectMachine open={connectOpen} onClose={() => setConnectOpen(false)} onConnected={onConnectedToEngine} />
+      {/* On the web, offer connecting to a local engine to run for real. */}
+      {!isDesktop() && !isLocalEngine() && stage === 'intent' && (
+        <button
+          onClick={() => setConnectOpen(true)}
+          className="absolute bottom-5 right-6 z-30 flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.08] px-3.5 py-1.5 text-[12px] font-medium text-accent transition-colors hover:bg-accent/15"
+        >
+          <Play size={12} /> Run for real on this machine
+        </button>
+      )}
       {showOnboarding && (
         <Onboarding
           onClose={() => setShowOnboarding(false)}

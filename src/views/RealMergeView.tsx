@@ -8,6 +8,8 @@ import { GitMerge, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { Button, Label, Slab, cn } from '../components/ui'
 import { mergeBranch, type MergeClickResult } from '../desktop/realLoop'
+import { isDesktop } from '../desktop/engine'
+import { isLocalEngine, mergeBranchHttp } from '../desktop/localEngine'
 import type { RealRunMeta } from '../loop/useRealLoop'
 
 const FIELD =
@@ -22,7 +24,8 @@ export default function RealMergeView({ meta }: { meta: RealRunMeta }) {
     if (!meta.branchName) return
     setBusy(true)
     try {
-      setResult(await mergeBranch(meta.workspacePath, meta.branchName, target.trim()))
+      const doMerge = !isDesktop() && isLocalEngine() ? mergeBranchHttp : mergeBranch
+      setResult(await doMerge(meta.workspacePath, meta.branchName, target.trim()))
     } catch (err) {
       setResult({ ok: false, message: err instanceof Error ? err.message : String(err) })
     } finally {
