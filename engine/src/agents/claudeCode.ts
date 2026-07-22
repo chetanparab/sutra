@@ -74,12 +74,18 @@ interface StreamLine {
   message?: { content?: Array<{ type?: string; text?: string; name?: string; input?: { file_path?: string } }> }
 }
 
+/** Sign-in / expired-session failures from the CLI, in stderr or a result error. */
+const AUTH_RE = /log ?in|logged in|authenticat|credential|OAuth|session expired|not authenticated|unauthorized/i
+
+/** One actionable message for every "you need to (re)sign in" case. */
+export function authError(): Error {
+  return new Error(
+    'Claude Code needs you to sign in again — its session has expired. Open a terminal and run `claude` (then `/login` if prompted) to sign back in, and launch again. Or switch to a provider with an API key.',
+  )
+}
+
 function friendlyFailure(stderrTail: string, exitCode: number | null): Error {
-  if (/log ?in|logged in|authenticate|credentials|OAuth/i.test(stderrTail)) {
-    return new Error(
-      'Claude Code is not signed in. Open a terminal, run `claude`, and sign in once (your claude.ai account or an API key) — then launch the loop again.',
-    )
-  }
+  if (AUTH_RE.test(stderrTail)) return authError()
   return new Error(`Claude Code exited with code ${exitCode}${stderrTail ? `: ${stderrTail.slice(-400)}` : '.'}`)
 }
 
@@ -186,7 +192,8 @@ function runClaude(params: {
           outputTokens: line.usage?.output_tokens ?? 0,
         }
         if (line.is_error) {
-          finish(() => rejectPromise(new Error(`Claude Code reported an error${result?.finalText ? `: ${result.finalText.slice(0, 400)}` : '.'}`)))
+          const text = result?.finalText ?? ''
+          finish(() => rejectPromise(AUTH_RE.test(text) ? authError() : new Error(`Claude Code reported an error${text ? `: ${text.slice(0, 400)}` : '.'}`)))
         }
       }
     }
