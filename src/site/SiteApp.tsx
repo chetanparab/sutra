@@ -7,12 +7,14 @@ import {
   Cpu,
   Eye,
   Feather,
+  GitBranch,
   Globe,
   History,
   Layers,
   Orbit,
   Palette,
   Plug,
+  Plus,
   RefreshCw,
   ShieldCheck,
   SlidersHorizontal,
@@ -38,6 +40,8 @@ const ICONS: Record<string, typeof Code2> = {
   shield: ShieldCheck,
   plug: Plug,
   palette: Palette,
+  plus: Plus,
+  'git-branch': GitBranch,
 }
 
 const OS_LABEL: Record<OS, string> = { mac: 'macOS', windows: 'Windows', linux: 'Linux' }
@@ -179,11 +183,11 @@ function Downloads({ os, appHref }: { os: OS; appHref: string }) {
           <div className="surface flex h-full flex-col p-6" style={{ borderColor: 'color-mix(in srgb, var(--accent) 35%, transparent)' }}>
             <div className="flex items-center gap-2">
               <Globe size={17} className="text-accent" />
-              <span className="font-display text-[17px] font-semibold">Web</span>
-              <Chip tone="ok" className="ml-auto">live now</Chip>
+              <span className="font-display text-[17px] font-semibold">Web preview</span>
+              <Chip tone="warn" className="ml-auto">demo</Chip>
             </div>
             <p className="mt-3 text-[12.5px] leading-relaxed text-secondary">
-              The full IDE in your browser — loop engine, living code surface and the WASM sandbox included. Nothing to install.
+              Feel the whole loop in your browser — design it, watch it converge, review the diff — on one scripted scenario with a real WASM verifier. Nothing to install; nothing runs on your repo.
             </p>
             <div className="mt-auto pt-5">
               <LinkButton href={appHref} variant="primary" className="w-full">
@@ -228,7 +232,7 @@ function Downloads({ os, appHref }: { os: OS; appHref: string }) {
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-[var(--radius)] border border-primary/10 bg-primary/[0.02] px-4 py-3 text-[12.5px] text-secondary">
           <span>
             Native installers are published to the <a href={RELEASES_URL} target="_blank" rel="noreferrer" className="text-accent underline-offset-2 hover:underline">GitHub Releases</a> page as
-            they roll out — signed <span className="font-mono text-[11.5px]">.dmg / .msi / .AppImage</span>. The web IDE is the same engine, available now with nothing to install.
+            they roll out — <span className="font-mono text-[11.5px]">.dmg / .msi / .AppImage</span>. The desktop app is where it’s real — your repo, your tests; the web here is a preview.
           </span>
           <LinkButton href={appHref} variant="primary" className="ml-auto">
             Launch the web IDE <ArrowRight size={13} />
@@ -360,7 +364,7 @@ export default function SiteApp() {
             It doesn’t claim. <span className="italic font-medium text-accent">It runs.</span>
           </>
         }
-        sub="Sutra’s Verify phase executes the change inside a QuickJS sandbox compiled to WebAssembly — sandboxed from your OS, offline-capable, byte-identical on every platform. Try it right here."
+        sub="In the desktop app, Verify runs your project’s own tests. Right here in the browser, this scenario’s change executes for real in a QuickJS-on-WebAssembly sandbox — so you can see real verification, not a promise, before you download. Try it."
       >
         <Reveal>
           <LiveWasmDemo />
@@ -398,8 +402,8 @@ export default function SiteApp() {
       <Section
         id="download"
         eyebrow="Get Sutra"
-        title="Use it now. Take it everywhere."
-        sub="The web IDE runs the full engine today. Native desktop builds are a featherweight Tauri shell over the same codebase — around 10 MB, with the WebAssembly engine inside."
+        title="Real on your machine. A download away."
+        sub="Download the desktop app to run your own repo for real — a featherweight Tauri shell (~10 MB) over an engine that runs your git, your tests and your files on your machine. Or try the loop right here in the browser first — it’s a preview."
       >
         <Downloads os={os} appHref={appHref} />
       </Section>
@@ -488,7 +492,7 @@ export default function SiteApp() {
             >
               Part of The Analogy Architect <ArrowUpRight size={12} />
             </a>
-            <span>A concept preview · © 2026 Sutra</span>
+            <span>Real on desktop · a preview on the web · © 2026 Sutra</span>
           </span>
         </div>
       </footer>
