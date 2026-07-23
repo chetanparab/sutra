@@ -56,6 +56,9 @@ export default function ConnectMachine({ open, onClose, onConnected }: { open: b
           <p className="mt-1.5 text-[12px] text-secondary">In a terminal, run:</p>
           <code className="mt-1.5 block rounded-[var(--radius)] bg-primary/[0.06] px-3 py-2 font-mono text-[12px] text-primary">npx sutra-engine serve</code>
           <p className="mt-1.5 text-[11px] text-muted">It prints a URL and a one-time token. Keep it running.</p>
+          <p className="mt-1.5 text-[11px] text-faint">
+            Running from the Sutra repo? <span className="font-mono text-muted">npm run engine:serve</span> does the same.
+          </p>
         </div>
 
         <div className="mt-3 space-y-2">

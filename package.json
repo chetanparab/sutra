@@ -9,6 +9,7 @@
     "build:desktop": "npm run sidecar && npm run build && node -e \"require('fs').copyFileSync('dist/app.html','dist/index.html')\"",
     "preview": "vite preview",
     "engine": "tsx engine/src/cli.ts",
+    "engine:serve": "tsx engine/src/cli.ts serve",
     "typecheck:engine": "tsc --noEmit -p engine/tsconfig.json",
     "test": "node engine/scripts/run-tests.mjs",
     "eval:task1": "tsx engine/evals/run-benchmark.ts",
