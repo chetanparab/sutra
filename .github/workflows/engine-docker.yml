@@ -1,0 +1,49 @@
+name: Engine Docker image builds
+
+# Proves engine/Dockerfile actually builds (and the hosted bundle boots), so the
+# hosting path can't bit-rot. Build-only — nothing is pushed anywhere.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'engine/**'
+      - 'src/contracts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.dockerignore'
+      - '.github/workflows/engine-docker.yml'
+  pull_request:
+    paths:
+      - 'engine/**'
+      - 'src/contracts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.dockerignore'
+      - '.github/workflows/engine-docker.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the engine image
+        run: docker build -f engine/Dockerfile -t sutra-engine:ci .
+      - name: Smoke-test the hosted server (refuses public bind without a token)
+        run: |
+          set -e
+          # 1. version runs from the built image
+          docker run --rm sutra-engine:ci node /app/sutra-engine.cjs version
+          # 2. a public bind refuses to start without a token (exit 1)
+          if docker run --rm -e SUTRA_HOST=0.0.0.0 sutra-engine:ci node /app/sutra-engine.cjs serve; then
+            echo "FAIL: public bind started without a token" && exit 1
+          else
+            echo "OK: refused public bind without a token"
+          fi
+          # 3. with a token it comes up and /health responds
+          docker run -d --name sutra-ci -p 4317:4317 -e SUTRA_TOKEN=ci-smoke-token sutra-engine:ci
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:4317/health && break || sleep 1
+          done
+          curl -sf http://127.0.0.1:4317/health
+          docker rm -f sutra-ci

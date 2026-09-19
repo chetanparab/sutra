@@ -1,0 +1,11 @@
+# Keep the build context small and reproducible. node_modules is reinstalled via
+# `npm ci` inside the image; build outputs and the desktop target are never needed.
+.git
+node_modules
+dist
+dist-sidecar
+engine-npm
+src-tauri/target
+**/*.log
+.DS_Store
+*.tgz

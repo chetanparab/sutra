@@ -25,9 +25,21 @@ import { ENGINE_VERSION } from '../version'
 
 interface ServeOptions {
   port: number
-  /** Fixed token (tests); otherwise a random one is generated and printed. */
+  /**
+   * Interface to bind. Defaults to loopback ('127.0.0.1') — the local dev flow,
+   * reachable only from this machine. Set '0.0.0.0' to expose it (e.g. inside a
+   * container you're hosting); the token is then the only gate, so the CLI
+   * refuses a non-loopback bind without an explicit token.
+   */
+  host?: string
+  /** Fixed token (tests / hosting); otherwise a random one is generated and printed. */
   token?: string
-  onListening?: (info: { port: number; token: string }) => void
+  /**
+   * Extra exact web origins allowed to call cross-origin, on top of localhost
+   * and the official site — for self-hosters whose web lives on their own domain.
+   */
+  allowedOrigins?: string[]
+  onListening?: (info: { host: string; port: number; token: string }) => void
 }
 
 /** One loop at a time, mirroring the desktop's single-loop invariant. */
@@ -52,9 +64,10 @@ export function startServer(opts: ServeOptions): { close: () => Promise<void>; t
   // site. An arbitrary web page gets no ACAO header, so the browser blocks it —
   // defence in depth on top of the token.
   const ALLOWED_ORIGIN = [/^https?:\/\/localhost(:\d+)?$/, /^https?:\/\/127\.0\.0\.1(:\d+)?$/, /^https:\/\/sutra\.theanalogyarchitect\.com$/]
+  const extraOrigins = new Set((opts.allowedOrigins ?? []).map((o) => o.trim()).filter(Boolean))
   function cors(req: IncomingMessage, res: ServerResponse) {
     const origin = req.headers.origin
-    if (origin && ALLOWED_ORIGIN.some((re) => re.test(origin))) {
+    if (origin && (ALLOWED_ORIGIN.some((re) => re.test(origin)) || extraOrigins.has(origin))) {
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Vary', 'Origin')
     }
@@ -181,8 +194,9 @@ export function startServer(opts: ServeOptions): { close: () => Promise<void>; t
     }
   }
 
-  server.listen(opts.port, '127.0.0.1', () => {
-    opts.onListening?.({ port: opts.port, token })
+  const host = opts.host ?? '127.0.0.1'
+  server.listen(opts.port, host, () => {
+    opts.onListening?.({ host, port: opts.port, token })
   })
 
   return {
