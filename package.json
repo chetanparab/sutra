@@ -33,7 +33,7 @@
     "lucide-react": "^1.25.0",
     "quickjs-emscripten": "^0.32.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
