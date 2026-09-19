@@ -1,0 +1,36 @@
+# Deploy the Sutra engine to Fly.io — the fastest way to get a hosted
+# `sutra serve` URL the web IDE can point at.
+#
+#   1. fly launch --no-deploy --copy-config     # uses this file
+#   2. fly secrets set SUTRA_TOKEN=$(openssl rand -base64 24)
+#   3. fly deploy
+#   4. Point the web IDE at https://<app>.fly.dev with that token.
+#
+# See engine/HOSTING.md for the threat model and the single-tenant caveats.
+
+app = "sutra-engine"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "engine/Dockerfile"
+
+[env]
+  SUTRA_HOST = "0.0.0.0"
+  PORT = "4317"
+  # The web IDE's origin is already allowed. Add your own web origin here if you
+  # self-host the front-end too (comma-separated, exact origins).
+  # SUTRA_ALLOWED_ORIGINS = "https://ide.example.com"
+
+[http_service]
+  internal_port = 4317
+  force_https = true
+  # Scale to zero when idle; a loop is user-initiated, not always-on.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  # Loops run tests and the model's code — give it real headroom.
+  cpu_kind = "shared"
+  cpus = 2
+  memory = "2gb"

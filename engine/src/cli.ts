@@ -72,11 +72,13 @@ Usage:
       any code is written. No file writes, no execution. The loop runs the
       approved spec afterwards. --events ndjson emits one {type:'spec',…} line.
 
-  npm run engine -- serve [--port 4317] [--token <token>]
-      Web real-mode: run the engine as a localhost HTTP server so the WEB IDE
-      can run REAL loops (your files, your tests, your model) — a browser tab
-      can't do that itself. Prints a token the web IDE must present; only
-      localhost, only with the token. Ctrl+C stops it.
+  npm run engine -- serve [--port 4317] [--token <token>] [--host 127.0.0.1]
+      Web real-mode: run the engine as an HTTP server so the WEB IDE can run
+      REAL loops (your files, your tests, your model) — a browser tab can't do
+      that itself. Prints a token the web IDE must present; only with the token.
+      Defaults to localhost. To HOST it (a container/VM), set --host 0.0.0.0 and
+      a token via SUTRA_TOKEN. Env: PORT, SUTRA_HOST, SUTRA_TOKEN,
+      SUTRA_ALLOWED_ORIGINS (comma-separated). See engine/HOSTING.md. Ctrl+C stops.
 
   npm run engine -- merge <workspace-path> <shadow-branch> --into <target-branch> [--pr true]
       Phase 3: land a finished shadow branch — fast-forward, or rebase then
@@ -357,18 +359,48 @@ async function main(): Promise<void> {
     }
     case 'serve': {
       const { flags } = parseArgs(rest)
-      const port = flags.port ? Number(flags.port) : 4317
-      const { token } = startServer({
+      // Hosts (Fly, Cloud Run, CF Containers) inject PORT; flags win over env.
+      const port = Number(flags.port ?? process.env.PORT ?? 4317)
+      // Bind loopback by default (local dev). '0.0.0.0' exposes it for hosting.
+      const host = flags.host ?? process.env.SUTRA_HOST ?? '127.0.0.1'
+      // Token from flag or env; never from argv when hosting (use SUTRA_TOKEN).
+      const suppliedToken = flags.token ?? process.env.SUTRA_TOKEN
+      const allowedOrigins = (process.env.SUTRA_ALLOWED_ORIGINS ?? '')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean)
+
+      const isLoopback = host === '127.0.0.1' || host === 'localhost' || host === '::1'
+      // A public bind is reachable off-box, so the token is the only gate — refuse
+      // to invent one and expose it. The operator must set it deliberately.
+      if (!isLoopback && !suppliedToken) {
+        console.error(
+          `Refusing to bind ${host}:${port} without a token — it would be reachable on the network.\n` +
+            'Set SUTRA_TOKEN (a long random secret) and try again. Keep 127.0.0.1 for local-only use.',
+        )
+        process.exit(1)
+      }
+
+      startServer({
         port,
-        token: flags.token,
-        onListening: ({ port, token }) => {
-          console.log(`\nSutra engine serving on http://localhost:${port} — the web IDE can now run REAL loops.`)
-          console.log('Open the web IDE, choose "This machine", and paste this token:\n')
-          console.log(`  ${token}\n`)
-          console.log('Keep this terminal open. Ctrl+C to stop. Only the web IDE (with the token) can drive it.')
+        host,
+        token: suppliedToken,
+        allowedOrigins,
+        onListening: ({ host, port, token }) => {
+          if (isLoopback) {
+            console.log(`\nSutra engine serving on http://localhost:${port} — the web IDE can now run REAL loops.`)
+            console.log('Open the web IDE, choose "This machine", and paste this token:\n')
+            console.log(`  ${token}\n`)
+            console.log('Keep this terminal open. Ctrl+C to stop. Only the web IDE (with the token) can drive it.')
+          } else {
+            // Hosted: reachable off-box. Don't echo an operator-set secret.
+            console.log(`\nSutra engine serving on ${host}:${port} — reachable on the network, token-gated.`)
+            console.log('Point the web IDE at this host and present the token you set (SUTRA_TOKEN).')
+            if (allowedOrigins.length) console.log(`Extra allowed web origins: ${allowedOrigins.join(', ')}`)
+            console.log('Only callers with the token can drive it. See engine/HOSTING.md for the threat model.')
+          }
         },
       })
-      void token
       // Keep the process alive; the server owns the event loop.
       await new Promise(() => {})
       return
